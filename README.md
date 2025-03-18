@@ -15,6 +15,29 @@ A web application for analyzing YouTube watch history data. The application pars
 - Backend: Node.js with TypeScript
 - Data visualization: Chart.js (or similar library)
 
+## Repository Information
+
+- **GitHub Repository**: [https://github.com/codybmenefee/rabbit](https://github.com/codybmenefee/rabbit)
+
+### Common Git Commands
+
+```bash
+# Clone the repository
+git clone https://github.com/codybmenefee/rabbit.git
+
+# Pull the latest changes
+git pull origin main
+
+# Add changes
+git add .
+
+# Commit changes
+git commit -m "feat: your meaningful commit message"
+
+# Push changes
+git push origin main
+```
+
 ## Getting Started
 
 ### Frontend
