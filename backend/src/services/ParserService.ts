@@ -1,288 +1,380 @@
 import { JSDOM } from 'jsdom';
-import VideoMetrics from '../models/Metrics';
-import { VideoEntry, ContentType } from '../models/VideoEntry';
-import ClassifierService from './ClassifierService';
+import { IVideoEntry, ContentType, VideoCategory } from '../models/VideoEntry';
+import { VideoMetrics } from '../models/Metrics';
+import { YouTubeAPIService } from './YouTubeAPIService';
+import { AnalyticsService } from './AnalyticsService';
+import { logger } from '../utils/logger';
 
-// Define interface for parser results
-interface ParseResult {
-  metrics: VideoMetrics;
-  entries: VideoEntry[];
+export interface ParseOptions {
+  enrichWithAPI: boolean;
+  includeAds: boolean;
+  includeShorts: boolean;
+  dateRange?: {
+    start: Date;
+    end: Date;
+  };
+  categoryFilters?: VideoCategory[];
 }
 
-class ParserService {
+export interface ParseResult {
+  entries: IVideoEntry[];
+  metrics: VideoMetrics;
+  processingStats: {
+    totalEntries: number;
+    validEntries: number;
+    duplicatesRemoved: number;
+    errors: string[];
+    processingTime: number;
+  };
+}
+
+export class ParserService {
+  private youtubeAPI: YouTubeAPIService;
+  private analyticsService: AnalyticsService;
+
+  constructor(youtubeAPI: YouTubeAPIService, analyticsService: AnalyticsService) {
+    this.youtubeAPI = youtubeAPI;
+    this.analyticsService = analyticsService;
+  }
+
   /**
    * Parse YouTube watch history HTML file
    */
-  parseWatchHistory(htmlContent: string, includeAds: boolean = false, includeShorts: boolean = false): ParseResult {
-    console.log('Starting to parse watch history...');
+  public async parseWatchHistory(htmlContent: string, options: ParseOptions): Promise<ParseResult> {
+    const startTime = Date.now();
+    const errors: string[] = [];
     
+    logger.info('Starting watch history parsing...', { 
+      enrichWithAPI: options.enrichWithAPI,
+      includeAds: options.includeAds,
+      includeShorts: options.includeShorts
+    });
+
+    try {
+      // Parse HTML and extract raw entries
+      const rawEntries = this.extractRawEntries(htmlContent);
+      logger.info(`Extracted ${rawEntries.length} raw entries from HTML`);
+
+      if (rawEntries.length === 0) {
+        logger.warn('No entries found in HTML content');
+        return this.createEmptyResult(startTime, ['No watch history entries found in HTML file']);
+      }
+
+      // Convert to structured video entries
+      const videoEntries = this.convertToVideoEntries(rawEntries);
+      logger.info(`Converted to ${videoEntries.length} video entries`);
+
+      // Remove duplicates
+      const uniqueEntries = this.removeDuplicates(videoEntries);
+      const duplicatesRemoved = videoEntries.length - uniqueEntries.length;
+      logger.info(`Removed ${duplicatesRemoved} duplicate entries`);
+
+      // Apply filters
+      const filteredEntries = this.applyFilters(uniqueEntries, options);
+      logger.info(`Applied filters, ${filteredEntries.length} entries remaining`);
+
+      // Enrich with YouTube API if requested
+      let enrichedEntries = filteredEntries;
+      if (options.enrichWithAPI && this.youtubeAPI) {
+        try {
+          enrichedEntries = await this.youtubeAPI.enrichVideoEntries(filteredEntries);
+          logger.info(`Enriched ${enrichedEntries.filter(e => e.enrichedWithAPI).length} entries with API data`);
+        } catch (error) {
+          logger.error('Error during API enrichment:', error);
+          errors.push(`API enrichment failed: ${error}`);
+        }
+      }
+
+      // Generate metrics
+      const metrics = await this.analyticsService.generateMetrics(enrichedEntries);
+      logger.info('Generated comprehensive metrics');
+
+      const processingTime = (Date.now() - startTime) / 1000;
+      
+      return {
+        entries: enrichedEntries,
+        metrics,
+        processingStats: {
+          totalEntries: rawEntries.length,
+          validEntries: enrichedEntries.length,
+          duplicatesRemoved,
+          errors,
+          processingTime
+        }
+      };
+
+    } catch (error) {
+      logger.error('Error parsing watch history:', error);
+      const processingTime = (Date.now() - startTime) / 1000;
+      
+      return {
+        entries: [],
+        metrics: await this.analyticsService.generateMetrics([]),
+        processingStats: {
+          totalEntries: 0,
+          validEntries: 0,
+          duplicatesRemoved: 0,
+          errors: [`Fatal parsing error: ${error}`],
+          processingTime
+        }
+      };
+    }
+  }
+
+  /**
+   * Extract raw entries from HTML content
+   */
+  private extractRawEntries(htmlContent: string): any[] {
     try {
       const { window } = new JSDOM(htmlContent);
       const document = window.document;
+
+      // Try different selectors for YouTube watch history format
+      const selectors = [
+        '.outer-cell',           // Standard format
+        '.content-cell',         // Alternative format
+        '[data-test-id="video-entry"]', // Newer format
+        '.activity-record'       // Legacy format
+      ];
+
+      let entries: NodeListOf<Element> | null = null;
       
-      // Get all video entries
-      const entries = document.querySelectorAll('.outer-cell');
-      console.log(`Found ${entries.length} entries to process`);
-      
-      // Initialize metrics
-      const metrics: VideoMetrics = {
-        totalVideos: 0,
-        watchTimeMinutes: 0,
-        channelDistribution: {},
-        dayOfWeekDistribution: {
-          'Monday': 0,
-          'Tuesday': 0,
-          'Wednesday': 0,
-          'Thursday': 0,
-          'Friday': 0,
-          'Saturday': 0,
-          'Sunday': 0
-        },
-        mostWatchedChannels: [],
-        filteredAdsCount: 0,
-        filteredShortsCount: 0,
-        includingAds: includeAds,
-        includingShorts: includeShorts
-      };
-      
-      // If no entries, return sample data immediately
-      if (!entries || entries.length === 0) {
-        console.log('No entries found, generating sample data');
-        return this.generateSampleData(includeAds, includeShorts);
-      }
-      
-      const videoEntries: VideoEntry[] = [];
-      
-      // Process limited number of entries to prevent freezing
-      const maxEntriesToProcess = Math.min(entries.length, 100); // Limit to 100 entries
-      console.log(`Processing up to ${maxEntriesToProcess} entries...`);
-      
-      for (let i = 0; i < maxEntriesToProcess; i++) {
-        const entry = entries[i];
-        try {
-          // Extract video details
-          const contentCell = entry.querySelector('.content-cell');
-          if (!contentCell) continue;
-          
-          const text = contentCell.textContent || '';
-          
-          // Extract video title (assuming a structure like "Watched: Video Title")
-          const titleMatch = text.match(/Watched:\s*(.+?)(?=\son|$)/i);
-          const title = titleMatch ? titleMatch[1].trim() : 'Unknown Video';
-          
-          // Extract channel name
-          const channelMatch = text.match(/on\s+(.+?)$/i);
-          const channelName = channelMatch ? channelMatch[1].trim() : 'Unknown Channel';
-          
-          // Extract URL if available
-          const linkElement = contentCell.querySelector('a');
-          const url = linkElement ? linkElement.href : '';
-          
-          // Extract date (in a real app, you'd parse the actual date)
-          // For this example, we'll use the current date
-          const watchDate = new Date();
-          
-          // Create a video entry object
-          const videoData = {
-            title,
-            channelName,
-            url,
-            watchDate,
-            // In a real implementation, we'd extract more metadata
-            durationSeconds: Math.floor(Math.random() * 600), // Mock duration
-            isSponsored: false,
-            isVertical: Math.random() > 0.7, // Mock aspect ratio (30% are vertical)
-          };
-          
-          // Classify the content
-          const contentType = ClassifierService.classifyContent(videoData);
-          
-          const videoEntry: VideoEntry = {
-            title,
-            channelName,
-            watchDate,
-            url,
-            durationSeconds: videoData.durationSeconds,
-            contentType
-          };
-          
-          // Only count the video if it passes our filters
-          let shouldInclude = true;
-          
-          if (contentType === ContentType.ADVERTISEMENT) {
-            metrics.filteredAdsCount++;
-            shouldInclude = includeAds;
-          } else if (contentType === ContentType.SHORT) {
-            metrics.filteredShortsCount++;
-            shouldInclude = includeShorts;
-          }
-          
-          if (shouldInclude) {
-            // Add to metrics
-            metrics.totalVideos++;
-            
-            // Update channel distribution
-            metrics.channelDistribution[channelName] = (metrics.channelDistribution[channelName] || 0) + 1;
-            
-            // Estimated watch time (based on content type)
-            if (contentType === ContentType.SHORT) {
-              metrics.watchTimeMinutes += Math.min(1, videoData.durationSeconds / 60); // Shorts are usually less than a minute
-            } else if (contentType === ContentType.ADVERTISEMENT) {
-              metrics.watchTimeMinutes += 0.5; // Ads are typically 30 seconds
-            } else {
-              metrics.watchTimeMinutes += videoData.durationSeconds / 60; // Regular videos, use actual duration
-            }
-            
-            // Set day of week (for mock data, let's distribute randomly)
-            const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-            const randomDay = days[Math.floor(Math.random() * days.length)];
-            metrics.dayOfWeekDistribution[randomDay] = metrics.dayOfWeekDistribution[randomDay] + 1;
-            
-            // Save the entry for potential future use
-            videoEntries.push(videoEntry);
-          }
-        } catch (error) {
-          console.error('Error parsing entry:', error);
+      for (const selector of selectors) {
+        entries = document.querySelectorAll(selector);
+        if (entries && entries.length > 0) {
+          logger.debug(`Found entries using selector: ${selector}`);
+          break;
         }
       }
-      
-      console.log('Finished processing entries, calculating most watched channels');
-      
-      // Calculate most watched channels
-      metrics.mostWatchedChannels = Object.entries(metrics.channelDistribution)
-        .map(([channel, count]) => ({ channel, count }))
-        .sort((a, b) => b.count - a.count)
-        .slice(0, 5);
-      
-      // If no entries were found or if all were filtered out, create sample data for demo
-      if (metrics.totalVideos === 0) {
-        console.log('No valid videos after filtering, generating sample data');
-        return this.generateSampleData(includeAds, includeShorts);
-      }
-      
-      console.log('Successfully parsed watch history');
-      return {
-        metrics,
-        entries: videoEntries
-      };
-    } catch (error) {
-      console.error('Error in parseWatchHistory:', error);
-      // Fall back to sample data on error
-      return this.generateSampleData(includeAds, includeShorts);
-    }
-  }
-  
-  /**
-   * Generate sample data for demonstration purposes
-   */
-  generateSampleData(includeAds: boolean = false, includeShorts: boolean = false): ParseResult {
-    console.log('Generating sample data...');
-    const regularVideos = 70;
-    const shortsCount = 40;
-    const adsCount = 10;
-    
-    const totalVideos = regularVideos + 
-      (includeShorts ? shortsCount : 0) + 
-      (includeAds ? adsCount : 0);
-    
-    const metrics: VideoMetrics = {
-      totalVideos,
-      watchTimeMinutes: regularVideos * 5 + (includeShorts ? shortsCount * 0.5 : 0) + (includeAds ? adsCount * 0.5 : 0),
-      channelDistribution: {
-        'Music Channel': 20,
-        'Tech Channel': 15,
-        'Gaming Channel': 15,
-        'Cooking Channel': 10,
-        'Educational Channel': 20,
-        'Shorts Channel': includeShorts ? 30 : 0,
-        'Advertisement': includeAds ? 10 : 0
-      },
-      dayOfWeekDistribution: {
-        'Monday': 10,
-        'Tuesday': 15,
-        'Wednesday': 20,
-        'Thursday': 15,
-        'Friday': 25,
-        'Saturday': 25,
-        'Sunday': 10
-      },
-      mostWatchedChannels: [
-        { channel: 'Music Channel', count: 20 },
-        { channel: 'Educational Channel', count: 20 },
-        { channel: includeShorts ? 'Shorts Channel' : 'Tech Channel', count: includeShorts ? 30 : 15 },
-        { channel: 'Gaming Channel', count: 15 },
-        { channel: 'Cooking Channel', count: 10 }
-      ],
-      filteredAdsCount: adsCount,
-      filteredShortsCount: shortsCount,
-      includingAds: includeAds,
-      includingShorts: includeShorts
-    };
-    
-    // Generate sample video entries
-    const sampleEntries: VideoEntry[] = [];
-    const channels = ['Music Channel', 'Tech Channel', 'Gaming Channel', 'Cooking Channel', 'Educational Channel', 'Shorts Channel', 'Advertisement'];
-    const titles = [
-      'How to Build a Website', 'Learning TypeScript', 'React for Beginners', 
-      'Delicious Pasta Recipe', 'History of Computing', 'Quick Tutorial', 
-      'Product Review', 'Live Concert', 'Gaming Highlights', 'News Update'
-    ];
-    
-    // Current date
-    const now = new Date();
-    
-    // Generate different video entries
-    for (let i = 0; i < totalVideos; i++) {
-      let contentType = ContentType.STANDARD;
-      let channelName = '';
-      let durationSeconds = 0;
-      
-      if (i < regularVideos) {
-        // Regular videos
-        contentType = ContentType.STANDARD;
-        channelName = channels[Math.floor(Math.random() * 5)]; // First 5 channels
-        durationSeconds = Math.floor(Math.random() * 900) + 60; // 1-15 minutes
-      } else if (i < regularVideos + shortsCount && includeShorts) {
-        // Shorts
-        contentType = ContentType.SHORT;
-        channelName = 'Shorts Channel';
-        durationSeconds = Math.floor(Math.random() * 30) + 15; // 15-45 seconds
-      } else if (includeAds) {
-        // Ads
-        contentType = ContentType.ADVERTISEMENT;
-        channelName = 'Advertisement';
-        durationSeconds = Math.floor(Math.random() * 15) + 5; // 5-20 seconds
-      }
-      
-      if (channelName) { // Only add if we've assigned a channel (respecting includeAds/includeShorts)
-        // Random date within the last 30 days
-        const date = new Date(now);
-        date.setDate(date.getDate() - Math.floor(Math.random() * 30));
-        
-        sampleEntries.push({
-          title: `${titles[Math.floor(Math.random() * titles.length)]} ${i + 1}`,
-          channelName,
-          watchDate: date,
-          url: `https://youtube.com/watch?v=${Math.random().toString(36).substring(2, 12)}`,
-          durationSeconds,
-          contentType
-        });
-      }
-    }
-    
-    return {
-      metrics,
-      entries: sampleEntries
-    };
-  }
-  
-  /**
-   * Generate sample entries for the table view
-   */
-  generateSampleEntries(includeAds: boolean = false, includeShorts: boolean = false): {entries: VideoEntry[]} {
-    const result = this.generateSampleData(includeAds, includeShorts);
-    return { entries: result.entries };
-  }
-}
 
-export default new ParserService(); 
+      if (!entries || entries.length === 0) {
+        logger.warn('No entries found with any known selector');
+        return [];
+      }
+
+      const rawEntries: any[] = [];
+      
+      entries.forEach((entry, index) => {
+        try {
+          const extractedData = this.extractEntryData(entry);
+          if (extractedData) {
+            rawEntries.push(extractedData);
+          }
+        } catch (error) {
+          logger.warn(`Error extracting entry ${index}:`, error);
+        }
+      });
+
+      return rawEntries;
+
+    } catch (error) {
+      logger.error('Error parsing HTML DOM:', error);
+      throw new Error(`Failed to parse HTML content: ${error}`);
+    }
+  }
+
+  /**
+   * Extract data from a single entry element
+   */
+  private extractEntryData(element: Element): any | null {
+    try {
+      // Find title and URL
+      const titleElement = element.querySelector('a[href*="watch?v="], a[href*="youtu.be/"], a[href*="shorts/"]');
+      
+      if (!titleElement) {
+        return null; // Skip entries without video links
+      }
+
+      const url = titleElement.getAttribute('href') || '';
+      const title = titleElement.textContent?.trim() || 'Unknown Title';
+
+      // Find channel name - try multiple selectors
+      const channelSelectors = [
+        '.channel-name',
+        '.creator-name', 
+        'a[href*="/channel/"]',
+        'a[href*="/c/"]',
+        'a[href*="/@"]'
+      ];
+      
+      let channel = 'Unknown Channel';
+      for (const selector of channelSelectors) {
+        const channelElement = element.querySelector(selector);
+        if (channelElement) {
+          channel = channelElement.textContent?.trim() || 'Unknown Channel';
+          break;
+        }
+      }
+
+      // Find date/time
+      const dateSelectors = [
+        'time[datetime]',
+        '.timestamp',
+        '.date',
+        '[data-timestamp]'
+      ];
+
+      let watchedAt = new Date();
+      for (const selector of dateSelectors) {
+        const dateElement = element.querySelector(selector);
+        if (dateElement) {
+          const dateValue = dateElement.getAttribute('datetime') || 
+                          dateElement.getAttribute('data-timestamp') ||
+                          dateElement.textContent;
+          
+          if (dateValue) {
+            const parsedDate = new Date(dateValue);
+            if (!isNaN(parsedDate.getTime())) {
+              watchedAt = parsedDate;
+              break;
+            }
+          }
+        }
+      }
+
+      // Extract additional metadata if available
+      const metadata = this.extractMetadata(element);
+
+      return {
+        title,
+        channel,
+        url: this.normalizeURL(url),
+        watchedAt,
+        ...metadata
+      };
+
+    } catch (error) {
+      logger.warn('Error extracting entry data:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Extract additional metadata from entry element
+   */
+  private extractMetadata(element: Element): any {
+    const metadata: any = {};
+
+    // Try to detect content type from URL or context
+    const url = element.querySelector('a')?.getAttribute('href') || '';
+    
+    if (url.includes('/shorts/')) {
+      metadata.contentType = ContentType.SHORT;
+    } else if (url.includes('live') || element.textContent?.includes('live')) {
+      metadata.contentType = ContentType.LIVESTREAM;
+    } else {
+      metadata.contentType = ContentType.VIDEO;
+    }
+
+    // Check for ads
+    if (element.textContent?.toLowerCase().includes('ad') || 
+        element.classList.contains('ad') ||
+        element.querySelector('.ad-marker')) {
+      metadata.contentType = ContentType.AD;
+    }
+
+    return metadata;
+  }
+
+  /**
+   * Convert raw entries to structured video entries
+   */
+  private convertToVideoEntries(rawEntries: any[]): IVideoEntry[] {
+    return rawEntries.map(raw => ({
+      title: raw.title,
+      channel: raw.channel,
+      url: raw.url,
+      watchedAt: raw.watchedAt,
+      contentType: raw.contentType || ContentType.UNKNOWN,
+      category: VideoCategory.UNKNOWN,
+      enrichedWithAPI: false,
+      lastUpdated: new Date(),
+      videoId: this.youtubeAPI?.extractVideoId(raw.url),
+      processingErrors: []
+    }));
+  }
+
+  /**
+   * Remove duplicate entries based on URL and timestamp
+   */
+  private removeDuplicates(entries: IVideoEntry[]): IVideoEntry[] {
+    const seen = new Set<string>();
+    return entries.filter(entry => {
+      const key = `${entry.url}-${entry.watchedAt.getTime()}`;
+      if (seen.has(key)) {
+        return false;
+      }
+      seen.add(key);
+      return true;
+    });
+  }
+
+  /**
+   * Apply filters based on options
+   */
+  private applyFilters(entries: IVideoEntry[], options: ParseOptions): IVideoEntry[] {
+    let filtered = entries;
+
+    // Filter by content type
+    if (!options.includeAds) {
+      filtered = filtered.filter(entry => entry.contentType !== ContentType.AD);
+    }
+
+    if (!options.includeShorts) {
+      filtered = filtered.filter(entry => entry.contentType !== ContentType.SHORT);
+    }
+
+    // Filter by date range
+    if (options.dateRange) {
+      filtered = filtered.filter(entry => 
+        entry.watchedAt >= options.dateRange!.start && 
+        entry.watchedAt <= options.dateRange!.end
+      );
+    }
+
+    // Filter by categories (if specified)
+    if (options.categoryFilters && options.categoryFilters.length > 0) {
+      filtered = filtered.filter(entry => 
+        options.categoryFilters!.includes(entry.category)
+      );
+    }
+
+    return filtered;
+  }
+
+  /**
+   * Normalize YouTube URLs to standard format
+   */
+  private normalizeURL(url: string): string {
+    if (!url) return '';
+
+    // Handle relative URLs
+    if (url.startsWith('/')) {
+      url = 'https://www.youtube.com' + url;
+    }
+
+    // Convert youtu.be to youtube.com
+    url = url.replace('youtu.be/', 'youtube.com/watch?v=');
+
+    return url;
+  }
+
+  /**
+   * Create empty result for error cases
+   */
+  private createEmptyResult(startTime: number, errors: string[]): ParseResult {
+    return {
+      entries: [],
+      metrics: this.analyticsService ? 
+        this.analyticsService.generateMetrics([]).then(m => m) as any : 
+        {} as VideoMetrics,
+      processingStats: {
+        totalEntries: 0,
+        validEntries: 0,
+        duplicatesRemoved: 0,
+        errors,
+        processingTime: (Date.now() - startTime) / 1000
+      }
+    };
+  }
+} 

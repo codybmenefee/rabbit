@@ -1,40 +1,227 @@
 import express from 'express';
 import cors from 'cors';
+import rateLimit from 'express-rate-limit';
 import dotenv from 'dotenv';
+import { logger } from './utils/logger';
+import { database } from './utils/database';
 import analyticsRoutes from './routes/analyticsRoutes';
+import { YouTubeAPIService } from './services/YouTubeAPIService';
+import { AnalyticsService } from './services/AnalyticsService';
+import { ParserService } from './services/ParserService';
 
+// Load environment variables
 dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// Middleware
+// Rate limiting
+const limiter = rateLimit({
+  windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS || '900000'), // 15 minutes
+  max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS || '100'), // limit each IP to 100 requests per windowMs
+  message: 'Too many requests from this IP, please try again later.',
+  standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
+  legacyHeaders: false, // Disable the `X-RateLimit-*` headers
+});
+
+// Apply rate limiting to all requests
+app.use(limiter);
+
+// CORS configuration
+const corsOrigins = process.env.CORS_ORIGIN?.split(',') || ['http://localhost:3000', 'http://localhost:3001'];
 app.use(cors({
-  origin: ['http://localhost:3000', 'http://localhost:3001'], // Allow both default Next.js ports
-  methods: ['GET', 'POST'],
-  credentials: true
+  origin: corsOrigins,
+  methods: ['GET', 'POST', 'PUT', 'DELETE'],
+  credentials: true,
+  optionsSuccessStatus: 200
 }));
 
-// Increase limit for large HTML files and set timeout
+// Body parsing middleware with increased limits for file uploads
 app.use(express.json({ 
-  limit: '50mb',
+  limit: process.env.MAX_FILE_SIZE || '50mb',
   verify: (req, res, buf, encoding) => {
-    // Add request timeout handling
-    req.setTimeout(60000); // 60 second timeout
+    // Set request timeout for large files
+    req.setTimeout(parseInt(process.env.UPLOAD_TIMEOUT || '300000')); // 5 minutes
   }
 }));
 
-// Root route - used for connection testing
-app.get('/', (req, res) => {
-  res.send('YouTube Watch History Analytics API is running!');
+app.use(express.urlencoded({ 
+  extended: true, 
+  limit: process.env.MAX_FILE_SIZE || '50mb' 
+}));
+
+// Request logging middleware
+app.use((req, res, next) => {
+  logger.info(`${req.method} ${req.path} - ${req.ip}`);
+  next();
 });
+
+// Health check endpoint
+app.get('/health', async (req, res) => {
+  try {
+    const dbHealth = await database.healthCheck();
+    res.status(200).json({
+      status: 'healthy',
+      timestamp: new Date().toISOString(),
+      version: '2.0.0',
+      database: dbHealth,
+      memory: {
+        used: Math.round(process.memoryUsage().heapUsed / 1024 / 1024),
+        total: Math.round(process.memoryUsage().heapTotal / 1024 / 1024)
+      }
+    });
+  } catch (error) {
+    logger.error('Health check failed:', error);
+    res.status(503).json({
+      status: 'unhealthy',
+      timestamp: new Date().toISOString(),
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+// Root route
+app.get('/', (req, res) => {
+  res.json({
+    name: 'Rabbit YouTube Analytics API',
+    version: '2.0.0',
+    description: 'Advanced YouTube watch history analytics platform',
+    endpoints: {
+      health: '/health',
+      analytics: '/api/analytics',
+      upload: '/api/analytics/upload',
+      metrics: '/api/analytics/metrics'
+    },
+    documentation: 'https://docs.rabbit-analytics.com'
+  });
+});
+
+// Initialize services
+let youtubeAPIService: YouTubeAPIService | null = null;
+let analyticsService: AnalyticsService;
+let parserService: ParserService;
+
+// Initialize YouTube API service if API key is provided
+if (process.env.YOUTUBE_API_KEY) {
+  youtubeAPIService = new YouTubeAPIService({
+    apiKey: process.env.YOUTUBE_API_KEY,
+    quotaLimit: parseInt(process.env.YOUTUBE_QUOTA_LIMIT || '10000'),
+    batchSize: parseInt(process.env.BATCH_SIZE || '50'),
+    requestDelay: parseInt(process.env.API_DELAY_MS || '100'),
+    maxConcurrentRequests: parseInt(process.env.MAX_CONCURRENT_REQUESTS || '5')
+  });
+  logger.info('YouTube API service initialized');
+} else {
+  logger.warn('YouTube API key not provided - API enrichment will be disabled');
+}
+
+// Initialize analytics and parser services
+analyticsService = new AnalyticsService();
+parserService = new ParserService(youtubeAPIService!, analyticsService);
+
+// Make services available to routes
+app.locals.services = {
+  youtubeAPI: youtubeAPIService,
+  analytics: analyticsService,
+  parser: parserService
+};
 
 // API routes
 app.use('/api/analytics', analyticsRoutes);
 
-// Start server
-app.listen(PORT, () => {
-  console.log(`Server is running on port ${PORT}`);
+// 404 handler
+app.use('*', (req, res) => {
+  res.status(404).json({
+    error: 'Endpoint not found',
+    path: req.originalUrl,
+    method: req.method,
+    timestamp: new Date().toISOString()
+  });
 });
 
-export default app; // Export for testing 
+// Global error handler
+app.use((error: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+  logger.error('Unhandled error:', error);
+  
+  res.status(error.status || 500).json({
+    error: 'Internal server error',
+    message: process.env.NODE_ENV === 'development' ? error.message : 'Something went wrong',
+    timestamp: new Date().toISOString(),
+    requestId: req.headers['x-request-id'] || 'unknown'
+  });
+});
+
+// Start server function
+async function startServer() {
+  try {
+    // Connect to database if URI is provided
+    if (process.env.MONGODB_URI) {
+      await database.connect({
+        uri: process.env.MONGODB_URI,
+        options: {
+          retryWrites: true,
+          w: 'majority'
+        }
+      });
+      logger.info('Database connection established');
+    } else {
+      logger.warn('MongoDB URI not provided - running without database persistence');
+    }
+
+    // Start the server
+    const server = app.listen(PORT, () => {
+      logger.info(`🐰 Rabbit Analytics API server running on port ${PORT}`);
+      logger.info(`Environment: ${process.env.NODE_ENV || 'development'}`);
+      logger.info(`CORS origins: ${corsOrigins.join(', ')}`);
+      
+      if (youtubeAPIService) {
+        logger.info('✅ YouTube API integration enabled');
+      } else {
+        logger.info('⚠️  YouTube API integration disabled');
+      }
+    });
+
+    // Graceful shutdown handling
+    const gracefulShutdown = async (signal: string) => {
+      logger.info(`Received ${signal}, starting graceful shutdown...`);
+      
+      server.close(async () => {
+        logger.info('HTTP server closed');
+        
+        try {
+          await database.disconnect();
+          logger.info('Database connection closed');
+        } catch (error) {
+          logger.error('Error closing database connection:', error);
+        }
+        
+        logger.info('Graceful shutdown completed');
+        process.exit(0);
+      });
+
+      // Force close server after 10 seconds
+      setTimeout(() => {
+        logger.error('Could not close connections in time, forcefully shutting down');
+        process.exit(1);
+      }, 10000);
+    };
+
+    // Listen for termination signals
+    process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+    process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+
+    return server;
+
+  } catch (error) {
+    logger.error('Failed to start server:', error);
+    process.exit(1);
+  }
+}
+
+// Start the server if this file is run directly
+if (require.main === module) {
+  startServer();
+}
+
+export { app, startServer };
+export default app; 
