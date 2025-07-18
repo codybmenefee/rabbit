@@ -1,23 +1,33 @@
 {
-  "name": "frontend",
-  "version": "1.0.0",
-  "description": "YouTube Watch History Analytics App Frontend",
+  "name": "rabbit-frontend",
+  "version": "2.0.0",
+  "description": "Rabbit YouTube Analytics Platform - Frontend",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "lint:fix": "next lint --fix",
+    "type-check": "tsc --noEmit"
   },
   "dependencies": {
+    "@headlessui/react": "^1.7.17",
+    "@heroicons/react": "^2.0.18",
     "axios": "^1.6.2",
+    "clsx": "^2.0.0",
     "date-fns": "^4.1.0",
+    "framer-motion": "^10.16.16",
+    "lucide-react": "^0.294.0",
     "next": "^14.0.4",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-dropzone": "^14.2.3",
+    "react-hot-toast": "^2.4.1",
+    "react-use": "^17.4.2",
     "recharts": "^2.10.3",
     "tailwindcss": "^3.3.6",
-    "typescript": "^5.3.3"
+    "typescript": "^5.3.3",
+    "zustand": "^4.4.7"
   },
   "devDependencies": {
     "@types/node": "^20.10.4",
@@ -26,6 +36,8 @@
     "autoprefixer": "^10.4.16",
     "eslint": "^8.55.0",
     "eslint-config-next": "^14.0.4",
-    "postcss": "^8.4.32"
+    "postcss": "^8.4.32",
+    "@tailwindcss/forms": "^0.5.7",
+    "@tailwindcss/typography": "^0.5.10"
   }
 }
