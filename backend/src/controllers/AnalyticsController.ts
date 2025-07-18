@@ -15,6 +15,7 @@ const uploadRequestSchema = z.object({
   htmlContent: z.string().min(1, 'HTML content is required'),
   options: z.object({
     enrichWithAPI: z.boolean().default(false),
+    useScrapingService: z.boolean().default(false),
     includeAds: z.boolean().default(false),
     includeShorts: z.boolean().default(true),
     dateRange: z.object({
@@ -125,6 +126,7 @@ export class AnalyticsController {
       // Convert string dates to Date objects if provided
       const parseOptions: ParseOptions = {
         ...options,
+        useScrapingService: options.useScrapingService || false, // Default to false for backward compatibility
         dateRange: options.dateRange ? {
           start: new Date(options.dateRange.start!),
           end: new Date(options.dateRange.end!)

@@ -2,12 +2,14 @@
 import { IVideoEntry, ContentType, VideoCategory } from '../models/VideoEntry';
 import { VideoMetrics } from '../models/Metrics';
 import { YouTubeAPIService } from './YouTubeAPIService';
+import { YouTubeScrapingService } from './YouTubeScrapingService';
 import { AnalyticsService } from './AnalyticsService';
 import { VideoService } from './VideoService';
 import { logger, createTimer, debugVideoProcessing } from '../utils/logger';
 
 export interface ParseOptions {
   enrichWithAPI: boolean;
+  useScrapingService: boolean; // New option to choose between API and scraping
   includeAds: boolean;
   includeShorts: boolean;
   dateRange?: {
@@ -48,14 +50,21 @@ export interface ProcessingProgress {
 
 export class ParserService {
   private youtubeAPI: YouTubeAPIService;
+  private youtubeScraping: YouTubeScrapingService | null;
   private analyticsService: AnalyticsService;
   private videoService: VideoService;
   
   // Add progress tracking
   private progressData = new Map<string, ProcessingProgress>();
 
-  constructor(youtubeAPI: YouTubeAPIService, analyticsService: AnalyticsService, videoService: VideoService) {
+  constructor(
+    youtubeAPI: YouTubeAPIService, 
+    analyticsService: AnalyticsService, 
+    videoService: VideoService,
+    youtubeScraping?: YouTubeScrapingService
+  ) {
     this.youtubeAPI = youtubeAPI;
+    this.youtubeScraping = youtubeScraping || null;
     this.analyticsService = analyticsService;
     this.videoService = videoService;
   }
@@ -204,45 +213,92 @@ export class ParserService {
         enrichWithAPI: options.enrichWithAPI 
       });
       
-      // Enrich with YouTube API if requested
+      // Enrich with YouTube API or Scraping Service if requested
       let enrichedEntries = preFilteredEntries;
-      if (options.enrichWithAPI && this.youtubeAPI) {
-        try {
-          timer.stage('YouTube API Enrichment');
-          logger.debug('Starting API enrichment process', {
-            totalEntries: preFilteredEntries.length,
-            apiServiceAvailable: !!this.youtubeAPI
+      if (options.enrichWithAPI) {
+        const useScrapingService = options.useScrapingService || false;
+        const serviceName = useScrapingService ? 'Scraping' : 'API';
+        const service = useScrapingService ? this.youtubeScraping : this.youtubeAPI;
+        
+        if (service) {
+          try {
+            timer.stage(`YouTube ${serviceName} Enrichment`);
+            logger.debug(`Starting ${serviceName.toLowerCase()} enrichment process`, {
+              totalEntries: preFilteredEntries.length,
+              serviceType: serviceName,
+              serviceAvailable: !!service
+            });
+            
+            this.updateProgress(sessionIdToUse, 'enrichment_processing', 50, `Enriching ${preFilteredEntries.length} videos with YouTube ${serviceName}...`, { 
+              totalEntries: preFilteredEntries.length,
+              serviceType: serviceName
+            });
+            
+            enrichedEntries = await service.enrichVideoEntries(preFilteredEntries);
+            const enrichedCount = enrichedEntries.filter(e => e.enrichedWithAPI).length;
+            
+            this.updateProgress(sessionIdToUse, 'enrichment_complete', 70, `${serviceName} enrichment complete. ${enrichedCount} videos enriched`, { 
+              totalEntries: preFilteredEntries.length,
+              enrichedEntries: enrichedCount,
+              enrichmentRate: ((enrichedCount / preFilteredEntries.length) * 100).toFixed(1) + '%',
+              serviceType: serviceName
+            });
+            
+            logger.info(`Enriched ${enrichedCount} entries with ${serviceName.toLowerCase()} data`);
+            logger.debug(`${serviceName} enrichment results`, {
+              totalEntries: preFilteredEntries.length,
+              enrichedEntries: enrichedCount,
+              enrichmentRate: ((enrichedCount / preFilteredEntries.length) * 100).toFixed(1) + '%',
+              failedEnrichments: preFilteredEntries.length - enrichedCount,
+              serviceType: serviceName
+            });
+
+            // Log scraping statistics if using scraping service
+            if (useScrapingService && this.youtubeScraping) {
+              const stats = this.youtubeScraping.getScrapingStats();
+              logger.debug('Scraping service statistics', stats);
+            }
+
+          } catch (error) {
+            logger.error(`Error during ${serviceName.toLowerCase()} enrichment:`, error);
+            errors.push(`${serviceName} enrichment failed: ${error}`);
+            
+            // Try fallback to the other service if the primary one fails
+            if (useScrapingService && this.youtubeAPI) {
+              logger.info('Attempting fallback to YouTube API after scraping failure');
+              try {
+                enrichedEntries = await this.youtubeAPI.enrichVideoEntries(preFilteredEntries);
+                const fallbackEnrichedCount = enrichedEntries.filter(e => e.enrichedWithAPI).length;
+                logger.info(`Fallback API enrichment successful: ${fallbackEnrichedCount} videos enriched`);
+              } catch (fallbackError) {
+                logger.error('Fallback API enrichment also failed:', fallbackError);
+                errors.push(`Fallback API enrichment failed: ${fallbackError}`);
+              }
+            } else if (!useScrapingService && this.youtubeScraping) {
+              logger.info('Attempting fallback to scraping service after API failure');
+              try {
+                enrichedEntries = await this.youtubeScraping.enrichVideoEntries(preFilteredEntries);
+                const fallbackEnrichedCount = enrichedEntries.filter(e => e.enrichedWithAPI).length;
+                logger.info(`Fallback scraping enrichment successful: ${fallbackEnrichedCount} videos enriched`);
+              } catch (fallbackError) {
+                logger.error('Fallback scraping enrichment also failed:', fallbackError);
+                errors.push(`Fallback scraping enrichment failed: ${fallbackError}`);
+              }
+            }
+          }
+        } else {
+          logger.debug(`${serviceName} enrichment skipped`, {
+            enrichWithAPI: options.enrichWithAPI,
+            useScrapingService: useScrapingService,
+            youtubeAPIAvailable: !!this.youtubeAPI,
+            youtubeScrapingAvailable: !!this.youtubeScraping,
+            reason: `${serviceName} service not available`
           });
-          
-          this.updateProgress(sessionIdToUse, 'enrichment_processing', 50, `Enriching ${preFilteredEntries.length} videos with YouTube API...`, { 
-            totalEntries: preFilteredEntries.length 
-          });
-          
-          enrichedEntries = await this.youtubeAPI.enrichVideoEntries(preFilteredEntries);
-          const enrichedCount = enrichedEntries.filter(e => e.enrichedWithAPI).length;
-          
-          this.updateProgress(sessionIdToUse, 'enrichment_complete', 70, `API enrichment complete. ${enrichedCount} videos enriched`, { 
-            totalEntries: preFilteredEntries.length,
-            enrichedEntries: enrichedCount,
-            enrichmentRate: ((enrichedCount / preFilteredEntries.length) * 100).toFixed(1) + '%'
-          });
-          
-          logger.info(`Enriched ${enrichedCount} entries with API data`);
-          logger.debug('API enrichment results', {
-            totalEntries: preFilteredEntries.length,
-            enrichedEntries: enrichedCount,
-            enrichmentRate: ((enrichedCount / preFilteredEntries.length) * 100).toFixed(1) + '%',
-            failedEnrichments: preFilteredEntries.length - enrichedCount
-          });
-        } catch (error) {
-          logger.error('Error during API enrichment:', error);
-          errors.push(`API enrichment failed: ${error}`);
         }
       } else {
-        logger.debug('API enrichment skipped', {
+        logger.debug('Enrichment skipped', {
           enrichWithAPI: options.enrichWithAPI,
-          youtubeAPIAvailable: !!this.youtubeAPI,
-          reason: !options.enrichWithAPI ? 'disabled in options' : 'YouTube API service not available'
+          reason: 'enrichment disabled in options'
         });
       }
 

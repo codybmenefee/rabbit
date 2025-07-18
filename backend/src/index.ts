@@ -5,7 +5,9 @@ import dotenv from 'dotenv';
 import { logger } from './utils/logger';
 import { database } from './utils/database';
 import analyticsRoutes from './routes/analyticsRoutes';
+import scrapingRoutes from './routes/scrapingRoutes';
 import { YouTubeAPIService } from './services/YouTubeAPIService';
+import { YouTubeScrapingService, ScrapingConfig } from './services/YouTubeScrapingService';
 import { AnalyticsService } from './services/AnalyticsService';
 import { VideoService } from './services/VideoService';
 import { ParserService } from './services/ParserService';
@@ -99,6 +101,7 @@ app.get('/', (req, res) => {
 
 // Initialize services
 let youtubeAPIService: YouTubeAPIService | null = null;
+let youtubeScrapingService: YouTubeScrapingService | null = null;
 let analyticsService: AnalyticsService;
 let videoService: VideoService;
 let parserService: ParserService;
@@ -117,14 +120,52 @@ if (process.env.YOUTUBE_API_KEY) {
   logger.warn('YouTube API key not provided - API enrichment will be disabled');
 }
 
+// Initialize YouTube Scraping service if enabled
+const scrapingEnabled = process.env.SCRAPING_ENABLED?.toLowerCase() === 'true';
+if (scrapingEnabled) {
+  const scrapingConfig: ScrapingConfig = {
+    maxConcurrentRequests: parseInt(process.env.SCRAPING_CONCURRENT_REQUESTS || '3'),
+    requestDelayMs: parseInt(process.env.SCRAPING_DELAY_MS || '2000'),
+    retryAttempts: parseInt(process.env.SCRAPING_RETRY_ATTEMPTS || '3'),
+    timeout: parseInt(process.env.SCRAPING_TIMEOUT_MS || '30000'),
+    userAgents: [], // Will use default user agents
+    enableJavaScript: process.env.SCRAPING_ENABLE_JAVASCRIPT?.toLowerCase() === 'true',
+    enableBrowser: process.env.SCRAPING_ENABLE_BROWSER?.toLowerCase() === 'true',
+    cacheEnabled: process.env.SCRAPING_CACHE_ENABLED?.toLowerCase() !== 'false',
+    cacheTTL: parseInt(process.env.SCRAPING_CACHE_TTL || '86400')
+  };
+
+  youtubeScrapingService = new YouTubeScrapingService(scrapingConfig);
+  logger.info('YouTube Scraping service initialized', {
+    maxConcurrentRequests: scrapingConfig.maxConcurrentRequests,
+    requestDelayMs: scrapingConfig.requestDelayMs,
+    enableBrowser: scrapingConfig.enableBrowser,
+    enableJavaScript: scrapingConfig.enableJavaScript,
+    cacheEnabled: scrapingConfig.cacheEnabled
+  });
+} else {
+  logger.warn('YouTube Scraping service disabled - only API enrichment available');
+}
+
+// Ensure at least one enrichment service is available
+if (!youtubeAPIService && !youtubeScrapingService) {
+  logger.error('No enrichment services available! Please configure either YouTube API or enable scraping.');
+}
+
 // Initialize analytics, video, and parser services
 analyticsService = new AnalyticsService();
 videoService = new VideoService();
-parserService = new ParserService(youtubeAPIService!, analyticsService, videoService);
+parserService = new ParserService(
+  youtubeAPIService!, 
+  analyticsService, 
+  videoService, 
+  youtubeScrapingService || undefined
+);
 
 // Make services available to routes
 app.locals.services = {
   youtubeAPI: youtubeAPIService,
+  youtubeScraping: youtubeScrapingService,
   analytics: analyticsService,
   video: videoService,
   parser: parserService
@@ -132,6 +173,7 @@ app.locals.services = {
 
 // API routes
 app.use('/api/analytics', analyticsRoutes);
+app.use('/api/scraping', scrapingRoutes);
 
 // 404 handler
 app.use('*', (req, res) => {
@@ -178,11 +220,22 @@ async function startServer() {
       logger.info(`Environment: ${process.env.NODE_ENV || 'development'}`);
       logger.info(`CORS origins: ${corsOrigins.join(', ')}`);
       
+      // Service status logging
       if (youtubeAPIService) {
         logger.info('✅ YouTube API integration enabled');
       } else {
         logger.info('⚠️  YouTube API integration disabled');
       }
+      
+      if (youtubeScrapingService) {
+        logger.info('✅ YouTube Scraping service enabled');
+      } else {
+        logger.info('⚠️  YouTube Scraping service disabled');
+      }
+      
+      // Default enrichment service
+      const defaultService = process.env.DEFAULT_ENRICHMENT_SERVICE || 'auto';
+      logger.info(`🔧 Default enrichment service: ${defaultService}`);
     });
 
     // Graceful shutdown handling
