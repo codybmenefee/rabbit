@@ -6,7 +6,9 @@ export enum ContentType {
   SHORT = 'short',
   LIVESTREAM = 'livestream',
   PREMIERE = 'premiere',
-  AD = 'advertisement',
+  ADVERTISEMENT = 'advertisement',
+  STANDARD = 'standard',
+  AD = 'advertisement', // Keep for backwards compatibility
   UNKNOWN = 'unknown'
 }
 
@@ -64,8 +66,11 @@ export interface IVideoEntry {
   processingErrors?: string[];
 }
 
+// Document interface for Mongoose
+export interface VideoEntryDocument extends IVideoEntry, Document {}
+
 // Mongoose schema
-const VideoEntrySchema = new Schema<IVideoEntry>({
+const VideoEntrySchema = new Schema<VideoEntryDocument>({
   title: { type: String, required: true, index: true },
   channel: { type: String, required: true, index: true },
   videoId: { type: String, sparse: true, index: true },
@@ -117,9 +122,4 @@ VideoEntrySchema.index({ category: 1, watchedAt: -1 });
 VideoEntrySchema.index({ contentType: 1, watchedAt: -1 });
 VideoEntrySchema.index({ videoId: 1 }, { sparse: true });
 
-export interface VideoEntryDocument extends IVideoEntry, Document {}
-export const VideoEntry = model<VideoEntryDocument>('VideoEntry', VideoEntrySchema);
-
-// Legacy export for backwards compatibility
-export { ContentType as ContentType };
-export type { IVideoEntry as VideoEntry }; 
+export const VideoEntry = model<VideoEntryDocument>('VideoEntry', VideoEntrySchema); 

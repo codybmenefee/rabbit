@@ -6,6 +6,7 @@ import { ParseOptions, ParseResult } from '../services/ParserService';
 import { YouTubeAPIService } from '../services/YouTubeAPIService';
 import { AnalyticsService } from '../services/AnalyticsService';
 import { ParserService } from '../services/ParserService';
+import { VideoCategory } from '../models/VideoEntry';
 import { logger } from '../utils/logger';
 
 // Request validation schemas
@@ -83,7 +84,10 @@ export class AnalyticsController {
         dateRange: options.dateRange ? {
           start: new Date(options.dateRange.start!),
           end: new Date(options.dateRange.end!)
-        } : undefined
+        } : undefined,
+        categoryFilters: options.categoryFilters ? 
+          options.categoryFilters.map(cat => cat as VideoCategory) : 
+          undefined
       };
 
       logger.info('Processing watch history upload', {

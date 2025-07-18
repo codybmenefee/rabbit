@@ -30,7 +30,6 @@ class DatabaseManager {
         serverSelectionTimeoutMS: 5000,
         socketTimeoutMS: 45000,
         bufferCommands: false,
-        bufferMaxEntries: 0,
         maxPoolSize: 10,
         minPoolSize: 5,
         maxIdleTimeMS: 30000,
@@ -100,6 +99,9 @@ class DatabaseManager {
   public async healthCheck(): Promise<{ status: string; database: string; readyState: number }> {
     try {
       const db = mongoose.connection.db;
+      if (!db) {
+        throw new Error('Database connection not established');
+      }
       const adminDb = db.admin();
       const result = await adminDb.ping();
       

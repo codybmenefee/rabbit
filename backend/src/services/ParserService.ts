@@ -289,7 +289,7 @@ export class ParserService {
       category: VideoCategory.UNKNOWN,
       enrichedWithAPI: false,
       lastUpdated: new Date(),
-      videoId: this.youtubeAPI?.extractVideoId(raw.url),
+      videoId: raw.videoId || undefined,
       processingErrors: []
     }));
   }

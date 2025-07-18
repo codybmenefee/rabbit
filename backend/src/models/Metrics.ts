@@ -178,7 +178,8 @@ export const emptyMetrics: VideoMetrics = {
     [ContentType.SHORT]: 0,
     [ContentType.LIVESTREAM]: 0,
     [ContentType.PREMIERE]: 0,
-    [ContentType.AD]: 0,
+    [ContentType.ADVERTISEMENT]: 0,
+    [ContentType.STANDARD]: 0,
     [ContentType.UNKNOWN]: 0
   },
 
@@ -230,7 +231,8 @@ export const emptyMetrics: VideoMetrics = {
       [ContentType.SHORT]: [],
       [ContentType.LIVESTREAM]: [],
       [ContentType.PREMIERE]: [],
-      [ContentType.AD]: [],
+      [ContentType.ADVERTISEMENT]: [],
+      [ContentType.STANDARD]: [],
       [ContentType.UNKNOWN]: []
     },
     categories: {} as any,

@@ -97,7 +97,7 @@ export class YouTubeAPIService {
         }
 
         const videoDetails = await this.getVideoDetails(batch);
-        const channelIds = new Set(videoDetails.map(v => v.snippet?.channelId).filter(Boolean));
+        const channelIds = new Set(videoDetails.map(v => v.snippet?.channelId).filter((id): id is string => Boolean(id)));
         const channelDetails = await this.getChannelDetails(Array.from(channelIds));
 
         // Apply enrichment to matching entries
@@ -224,11 +224,11 @@ export class YouTubeAPIService {
 
     // Basic metadata
     if (snippet) {
-      entry.description = snippet.description;
+      entry.description = snippet.description || undefined;
       entry.publishedAt = snippet.publishedAt ? new Date(snippet.publishedAt) : undefined;
       entry.tags = snippet.tags || [];
-      entry.thumbnailUrl = snippet.thumbnails?.default?.url;
-      entry.category = this.mapYouTubeCategoryToEnum(snippet.categoryId);
+      entry.thumbnailUrl = snippet.thumbnails?.default?.url || undefined;
+      entry.category = this.mapYouTubeCategoryToEnum(snippet.categoryId || undefined);
     }
 
     // Duration parsing
