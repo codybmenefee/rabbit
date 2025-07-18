@@ -14,7 +14,7 @@ import {
   PeriodComparison,
   emptyMetrics
 } from '../models/Metrics';
-import { logger } from '../utils/logger';
+import { logger, createTimer } from '../utils/logger';
 
 export class AnalyticsService {
   
@@ -22,40 +22,110 @@ export class AnalyticsService {
    * Generate comprehensive metrics from video entries
    */
   public async generateMetrics(entries: IVideoEntry[]): Promise<VideoMetrics> {
-    const startTime = Date.now();
+    const timer = createTimer('Analytics Generation');
     
     try {
       logger.info(`Generating metrics for ${entries.length} entries`);
+      logger.debug('Analytics generation started', {
+        totalEntries: entries.length,
+        enrichedEntries: entries.filter(e => e.enrichedWithAPI).length,
+        enrichmentRate: entries.length > 0 ? ((entries.filter(e => e.enrichedWithAPI).length / entries.length) * 100).toFixed(1) + '%' : '0%'
+      });
       
       if (entries.length === 0) {
+        logger.warn('No entries provided for metrics generation');
+        timer.end({ success: false, reason: 'no_entries' });
         return emptyMetrics;
       }
 
       // Calculate basic overview metrics
+      timer.stage('Overview Metrics');
       const overview = this.calculateOverviewMetrics(entries);
+      logger.debug('Overview metrics calculated', {
+        totalVideos: overview.totalVideos,
+        totalWatchTime: overview.totalWatchTime,
+        uniqueChannels: overview.uniqueChannels,
+        dateRange: {
+          start: overview.dateRange.start.toISOString(),
+          end: overview.dateRange.end.toISOString(),
+          totalDays: overview.dateRange.totalDays
+        }
+      });
       
       // Calculate content breakdowns
+      timer.stage('Content Type Distribution');
       const contentTypes = this.calculateContentTypeDistribution(entries);
+      logger.debug('Content type distribution calculated', {
+        distribution: contentTypes,
+        totalEntries: Object.values(contentTypes).reduce((sum, count) => sum + count, 0)
+      });
+      
+      timer.stage('Category Metrics');
       const categories = this.calculateCategoryMetrics(entries);
+      logger.debug('Category metrics calculated', {
+        categoriesFound: categories.length,
+        topCategories: categories.slice(0, 5).map(c => ({ category: c.category, count: c.videoCount }))
+      });
+      
+      timer.stage('Channel Metrics');
       const topChannels = this.calculateChannelMetrics(entries);
+      logger.debug('Channel metrics calculated', {
+        channelsFound: topChannels.length,
+        topChannels: topChannels.slice(0, 5).map(c => ({ name: c.channelName, count: c.videoCount }))
+      });
       
       // Calculate temporal patterns
+      timer.stage('Temporal Metrics');
       const temporal = this.calculateTemporalMetrics(entries);
+      logger.debug('Temporal metrics calculated', {
+        peakHours: temporal.peakHours,
+        peakDays: temporal.peakDays,
+        seasonalCounts: temporal.seasonalPatterns
+      });
       
       // Calculate discovery and engagement metrics
+      timer.stage('Discovery Metrics');
       const discovery = this.calculateDiscoveryMetrics(entries);
+      logger.debug('Discovery metrics calculated', {
+        subscriptionRate: discovery.subscriptionRate,
+        completionRate: discovery.contentCompletionRate,
+        discoveryMethods: Object.keys(discovery.discoveryMethods).length
+      });
       
       // Calculate trend analysis
+      timer.stage('Trend Metrics');
       const trends = this.calculateTrendMetrics(entries);
+      logger.debug('Trend metrics calculated', {
+        dailyDataPoints: trends.watchTime.daily.length,
+        weeklyDataPoints: trends.watchTime.weekly.length,
+        monthlyDataPoints: trends.watchTime.monthly.length
+      });
       
       // Calculate comparative analysis
+      timer.stage('Comparative Metrics');
       const comparisons = this.calculateComparativeMetrics(entries);
+      logger.debug('Comparative metrics calculated', {
+        monthOverMonth: comparisons.monthOverMonth,
+        yearOverYear: comparisons.yearOverYear
+      });
       
       // Calculate processing statistics
+      timer.stage('Processing Stats');
       const processing = this.calculateProcessingStats(entries);
+      logger.debug('Processing stats calculated', {
+        enrichedCount: processing.enrichedWithAPI,
+        errorsCount: processing.processingErrors,
+        dataQuality: processing.dataQuality
+      });
       
       // Legacy compatibility
+      timer.stage('Legacy Metrics');
       const legacy = this.calculateLegacyMetrics(entries);
+      logger.debug('Legacy metrics calculated', {
+        mostWatchedChannelsCount: legacy.mostWatchedChannels.length,
+        filteredAdsCount: legacy.filteredAdsCount,
+        filteredShortsCount: legacy.filteredShortsCount
+      });
 
       const metrics: VideoMetrics = {
         // Overview
@@ -81,13 +151,24 @@ export class AnalyticsService {
         version: '2.0.0'
       };
 
-      const processingTime = (Date.now() - startTime) / 1000;
-      logger.info(`Metrics generation completed in ${processingTime}s`);
+      timer.end({
+        totalEntries: entries.length,
+        metricsGenerated: true,
+        categoriesFound: categories.length,
+        channelsFound: topChannels.length,
+        enrichmentRate: ((entries.filter(e => e.enrichedWithAPI).length / entries.length) * 100).toFixed(1) + '%'
+      });
       
+      logger.info('Metrics generation completed successfully');
       return metrics;
       
     } catch (error) {
       logger.error('Error generating metrics:', error);
+      timer.end({ 
+        error: true, 
+        errorMessage: error instanceof Error ? error.message : 'Unknown error',
+        entriesCount: entries.length 
+      });
       return emptyMetrics;
     }
   }
@@ -96,21 +177,28 @@ export class AnalyticsService {
    * Calculate basic overview metrics
    */
   private calculateOverviewMetrics(entries: IVideoEntry[]) {
+    const timer = createTimer('Overview Metrics Calculation');
+    
     const totalVideos = entries.length;
+    
+    timer.stage('Watch Time Calculation');
     const totalWatchTime = entries.reduce((sum, entry) => {
       const duration = entry.duration || 300; // Default 5 minutes if unknown
       return sum + (duration / 60); // Convert to minutes
     }, 0);
     
     const averageWatchTime = totalVideos > 0 ? totalWatchTime / totalVideos : 0;
+    
+    timer.stage('Channel Analysis');
     const uniqueChannels = new Set(entries.map(e => e.channel)).size;
     
+    timer.stage('Date Range Analysis');
     const dates = entries.map(e => e.watchedAt).sort((a, b) => a.getTime() - b.getTime());
     const start = dates[0] || new Date();
     const end = dates[dates.length - 1] || new Date();
     const totalDays = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) || 1;
 
-    return {
+    const result = {
       totalVideos,
       totalWatchTime: Math.round(totalWatchTime),
       averageWatchTime: Math.round(averageWatchTime * 10) / 10,
@@ -121,12 +209,29 @@ export class AnalyticsService {
         totalDays
       }
     };
+
+    timer.end({
+      totalVideos,
+      totalWatchTimeMinutes: Math.round(totalWatchTime),
+      uniqueChannels,
+      totalDays
+    });
+
+    logger.debug('Overview metrics details', {
+      avgVideoLength: averageWatchTime.toFixed(1) + ' minutes',
+      watchTimeHours: (totalWatchTime / 60).toFixed(1),
+      videosPerDay: (totalVideos / totalDays).toFixed(1)
+    });
+
+    return result;
   }
 
   /**
    * Calculate content type distribution
    */
   private calculateContentTypeDistribution(entries: IVideoEntry[]): Record<ContentType, number> {
+    const timer = createTimer('Content Type Distribution');
+    
     const distribution: Record<ContentType, number> = {
       [ContentType.VIDEO]: 0,
       [ContentType.SHORT]: 0,
@@ -141,6 +246,20 @@ export class AnalyticsService {
       distribution[entry.contentType]++;
     });
 
+    timer.end({
+      totalEntries: entries.length,
+      contentTypesCounted: Object.keys(distribution).length,
+      distribution
+    });
+
+    logger.debug('Content type analysis', {
+      videos: distribution[ContentType.VIDEO],
+      shorts: distribution[ContentType.SHORT],
+      livestreams: distribution[ContentType.LIVESTREAM],
+      ads: distribution[ContentType.ADVERTISEMENT],
+      unknown: distribution[ContentType.UNKNOWN]
+    });
+
     return distribution;
   }
 
@@ -148,6 +267,8 @@ export class AnalyticsService {
    * Calculate category metrics with trends
    */
   private calculateCategoryMetrics(entries: IVideoEntry[]): CategoryMetrics[] {
+    const timer = createTimer('Category Metrics Calculation');
+    
     const categoryData: Record<VideoCategory, {
       videoCount: number;
       totalWatchTime: number;
@@ -156,6 +277,7 @@ export class AnalyticsService {
     }> = {} as any;
 
     // Initialize category data
+    timer.stage('Category Data Initialization');
     Object.values(VideoCategory).forEach(category => {
       categoryData[category] = {
         videoCount: 0,
@@ -166,6 +288,7 @@ export class AnalyticsService {
     });
 
     // Aggregate data
+    timer.stage('Data Aggregation');
     entries.forEach(entry => {
       const category = entry.category;
       const data = categoryData[category];
@@ -180,7 +303,8 @@ export class AnalyticsService {
 
     const totalVideos = entries.length;
     
-    return Object.entries(categoryData)
+    timer.stage('Trend Calculations');
+    const result = Object.entries(categoryData)
       .filter(([_, data]) => data.videoCount > 0)
       .map(([category, data]) => ({
         category: category as VideoCategory,
@@ -195,12 +319,31 @@ export class AnalyticsService {
         }
       }))
       .sort((a, b) => b.videoCount - a.videoCount);
+
+    timer.end({
+      categoriesWithContent: result.length,
+      topCategory: result[0]?.category,
+      totalVideosProcessed: totalVideos
+    });
+
+    logger.debug('Category metrics summary', {
+      activeCategories: result.length,
+      topCategories: result.slice(0, 3).map(c => ({
+        category: c.category,
+        videos: c.videoCount,
+        percentage: c.percentage
+      }))
+    });
+
+    return result;
   }
 
   /**
    * Calculate channel metrics
    */
   private calculateChannelMetrics(entries: IVideoEntry[]): ChannelMetrics[] {
+    const timer = createTimer('Channel Metrics Calculation');
+    
     const channelData: Record<string, {
       videoCount: number;
       totalWatchTime: number;
@@ -213,6 +356,7 @@ export class AnalyticsService {
       enrichedCount: number;
     }> = {};
 
+    timer.stage('Channel Data Aggregation');
     entries.forEach(entry => {
       if (!channelData[entry.channel]) {
         channelData[entry.channel] = {
@@ -245,7 +389,8 @@ export class AnalyticsService {
       }
     });
 
-    return Object.entries(channelData)
+    timer.stage('Channel Metrics Processing');
+    const result = Object.entries(channelData)
       .map(([channelName, data]) => {
         const sortedDates = data.dates.sort((a, b) => a.getTime() - b.getTime());
         const mostCommonCategory = Array.from(data.categories)[0] || VideoCategory.UNKNOWN;
@@ -268,12 +413,31 @@ export class AnalyticsService {
       })
       .sort((a, b) => b.videoCount - a.videoCount)
       .slice(0, 20); // Top 20 channels
+
+    timer.end({
+      totalChannels: Object.keys(channelData).length,
+      topChannelsReturned: result.length,
+      enrichedChannelsData: result.filter(c => c.engagement.averageViews > 0).length
+    });
+
+    logger.debug('Channel metrics summary', {
+      totalChannels: Object.keys(channelData).length,
+      topChannels: result.slice(0, 5).map(c => ({
+        name: c.channelName.substring(0, 30) + (c.channelName.length > 30 ? '...' : ''),
+        videos: c.videoCount,
+        watchTime: c.totalWatchTime + 'min'
+      }))
+    });
+
+    return result;
   }
 
   /**
    * Calculate temporal viewing patterns
    */
   private calculateTemporalMetrics(entries: IVideoEntry[]): TemporalMetrics {
+    const timer = createTimer('Temporal Metrics Calculation');
+    
     const hourlyDistribution: Record<string, number> = {};
     const dayOfWeekDistribution: Record<string, number> = {
       'Monday': 0, 'Tuesday': 0, 'Wednesday': 0, 'Thursday': 0,
@@ -287,6 +451,7 @@ export class AnalyticsService {
       hourlyDistribution[i.toString()] = 0;
     }
 
+    timer.stage('Temporal Data Processing');
     entries.forEach(entry => {
       const date = entry.watchedAt;
       
@@ -310,6 +475,7 @@ export class AnalyticsService {
       else seasonalCounts.winter++;
     });
 
+    timer.stage('Peak Analysis');
     // Find peak hours and days
     const peakHours = Object.entries(hourlyDistribution)
       .sort(([,a], [,b]) => b - a)
@@ -321,7 +487,7 @@ export class AnalyticsService {
       .slice(0, 3)
       .map(([day, ]) => day);
 
-    return {
+    const result = {
       hourlyDistribution,
       dayOfWeekDistribution,
       monthlyDistribution,
@@ -329,17 +495,35 @@ export class AnalyticsService {
       peakHours,
       peakDays
     };
+
+    timer.end({
+      peakHour: peakHours[0],
+      peakDay: peakDays[0],
+      monthsWithData: Object.keys(monthlyDistribution).length,
+      seasonalDistribution: seasonalCounts
+    });
+
+    logger.debug('Temporal patterns identified', {
+      mostActiveHour: peakHours[0],
+      mostActiveDay: peakDays[0],
+      seasonalPreference: Object.entries(seasonalCounts).sort(([,a], [,b]) => b - a)[0][0]
+    });
+
+    return result;
   }
 
   /**
    * Calculate discovery and engagement metrics
    */
   private calculateDiscoveryMetrics(entries: IVideoEntry[]): DiscoveryMetrics {
+    const timer = createTimer('Discovery Metrics Calculation');
+    
     const discoveryMethods: Record<string, number> = {};
     let subscribedCount = 0;
     let totalSessionLength = 0;
     let completedVideos = 0;
 
+    timer.stage('Discovery Method Analysis');
     entries.forEach(entry => {
       // Discovery method (if available)
       const method = entry.discoveryMethod || 'unknown';
@@ -356,6 +540,19 @@ export class AnalyticsService {
 
     const subscriptionRate = entries.length > 0 ? subscribedCount / entries.length : 0;
     const contentCompletionRate = entries.length > 0 ? completedVideos / entries.length : 0;
+
+    timer.end({
+      totalEntries: entries.length,
+      discoveryMethodsCounted: Object.keys(discoveryMethods).length,
+      subscriptionRate: subscriptionRate,
+      completionRate: contentCompletionRate
+    });
+
+    logger.debug('Discovery metrics summary', {
+      subscriptionRate: subscriptionRate,
+      completionRate: contentCompletionRate,
+      mostCommonDiscoveryMethod: Object.entries(discoveryMethods).sort(([,a], [,b]) => b - a)[0][0]
+    });
 
     return {
       discoveryMethods,
@@ -374,12 +571,14 @@ export class AnalyticsService {
    * Calculate trend metrics over time
    */
   private calculateTrendMetrics(entries: IVideoEntry[]): TrendMetrics {
+    const timer = createTimer('Trend Metrics Calculation');
+    
     // Group entries by time periods
     const dailyData = this.groupEntriesByPeriod(entries, 'day');
     const weeklyData = this.groupEntriesByPeriod(entries, 'week');
     const monthlyData = this.groupEntriesByPeriod(entries, 'month');
 
-    return {
+    const result = {
       watchTime: {
         daily: this.convertToTimeSeriesPoints(dailyData),
         weekly: this.convertToTimeSeriesPoints(weeklyData),
@@ -397,6 +596,29 @@ export class AnalyticsService {
       categories: {} as any,
       topChannels: []
     };
+
+    timer.end({
+      dailyDataPoints: result.watchTime.daily.length,
+      weeklyDataPoints: result.watchTime.weekly.length,
+      monthlyDataPoints: result.watchTime.monthly.length
+    });
+
+    logger.debug('Trend metrics summary', {
+      dailyTrends: result.watchTime.daily.length > 0 ? {
+        date: result.watchTime.daily[0].date.toISOString(),
+        value: result.watchTime.daily[0].value
+      } : 'No daily data',
+      weeklyTrends: result.watchTime.weekly.length > 0 ? {
+        date: result.watchTime.weekly[0].date.toISOString(),
+        value: result.watchTime.weekly[0].value
+      } : 'No weekly data',
+      monthlyTrends: result.watchTime.monthly.length > 0 ? {
+        date: result.watchTime.monthly[0].date.toISOString(),
+        value: result.watchTime.monthly[0].value
+      } : 'No monthly data'
+    });
+
+    return result;
   }
 
   /**
@@ -407,23 +629,40 @@ export class AnalyticsService {
     yearOverYear: PeriodComparison;
     quarterOverQuarter: PeriodComparison;
   } {
+    const timer = createTimer('Comparative Metrics Calculation');
+    
     const now = new Date();
     
-    return {
+    const result = {
       monthOverMonth: this.calculatePeriodComparison(entries, undefined, 'month'),
       yearOverYear: this.calculatePeriodComparison(entries, undefined, 'year'),
       quarterOverQuarter: this.calculatePeriodComparison(entries, undefined, 'quarter')
     };
+
+    timer.end({
+      monthOverMonth: result.monthOverMonth,
+      yearOverYear: result.yearOverYear,
+      quarterOverQuarter: result.quarterOverQuarter
+    });
+
+    logger.debug('Comparative metrics calculated', {
+      monthOverMonth: result.monthOverMonth,
+      yearOverYear: result.yearOverYear
+    });
+
+    return result;
   }
 
   /**
    * Calculate processing statistics
    */
   private calculateProcessingStats(entries: IVideoEntry[]) {
+    const timer = createTimer('Processing Stats Calculation');
+    
     const enrichedCount = entries.filter(e => e.enrichedWithAPI).length;
     const errorsCount = entries.filter(e => e.processingErrors && e.processingErrors.length > 0).length;
     
-    return {
+    const result = {
       totalVideosProcessed: entries.length,
       enrichedWithAPI: enrichedCount,
       processingErrors: errorsCount,
@@ -439,18 +678,37 @@ export class AnalyticsService {
         requestsMade: 0
       }
     };
+
+    timer.end({
+      totalEntries: entries.length,
+      enrichedCount: enrichedCount,
+      errorsCount: errorsCount,
+      dataQuality: result.dataQuality
+    });
+
+    logger.debug('Processing stats summary', {
+      totalVideosProcessed: result.totalVideosProcessed,
+      enrichedWithAPI: result.enrichedWithAPI,
+      processingErrors: result.processingErrors,
+      dataQuality: result.dataQuality
+    });
+
+    return result;
   }
 
   /**
    * Calculate legacy metrics for backwards compatibility
    */
   private calculateLegacyMetrics(entries: IVideoEntry[]) {
+    const timer = createTimer('Legacy Metrics Calculation');
+    
     const channelDistribution: Record<string, number> = {};
     const dayOfWeekDistribution: Record<string, number> = {
       'Monday': 0, 'Tuesday': 0, 'Wednesday': 0, 'Thursday': 0,
       'Friday': 0, 'Saturday': 0, 'Sunday': 0
     };
 
+    timer.stage('Channel Distribution Analysis');
     entries.forEach(entry => {
       // Channel distribution
       channelDistribution[entry.channel] = (channelDistribution[entry.channel] || 0) + 1;
@@ -467,6 +725,23 @@ export class AnalyticsService {
 
     const filteredAdsCount = entries.filter(e => e.contentType === ContentType.AD).length;
     const filteredShortsCount = entries.filter(e => e.contentType === ContentType.SHORT).length;
+
+    timer.end({
+      totalChannels: Object.keys(channelDistribution).length,
+      mostWatchedChannelsCount: mostWatchedChannels.length,
+      filteredAdsCount: filteredAdsCount,
+      filteredShortsCount: filteredShortsCount
+    });
+
+    logger.debug('Legacy metrics summary', {
+      totalChannels: Object.keys(channelDistribution).length,
+      mostWatchedChannels: mostWatchedChannels.slice(0, 5).map(c => ({
+        name: c.channel,
+        count: c.count
+      })),
+      filteredAdsCount: filteredAdsCount,
+      filteredShortsCount: filteredShortsCount
+    });
 
     return {
       channelDistribution,
@@ -487,6 +762,8 @@ export class AnalyticsService {
     category?: VideoCategory, 
     period: 'month' | 'year' | 'quarter' = 'month'
   ): PeriodComparison {
+    const timer = createTimer('Period Comparison Calculation');
+    
     const now = new Date();
     let periodStart: Date;
     let previousPeriodStart: Date;
@@ -523,6 +800,20 @@ export class AnalyticsService {
     const change = current - previous;
     const changePercentage = previous > 0 ? (change / previous) * 100 : 0;
 
+    timer.end({
+      currentPeriodEntries: current,
+      previousPeriodEntries: previous,
+      change: change,
+      changePercentage: changePercentage
+    });
+
+    logger.debug('Period comparison details', {
+      currentPeriod: periodStart.toISOString(),
+      previousPeriod: previousPeriodStart.toISOString(),
+      change: change,
+      changePercentage: changePercentage
+    });
+
     return {
       current,
       previous,
@@ -532,6 +823,8 @@ export class AnalyticsService {
   }
 
   private groupEntriesByPeriod(entries: IVideoEntry[], period: 'day' | 'week' | 'month'): Record<string, IVideoEntry[]> {
+    const timer = createTimer('Entries Grouping by Period');
+    
     const grouped: Record<string, IVideoEntry[]> = {};
 
     entries.forEach(entry => {
@@ -554,16 +847,45 @@ export class AnalyticsService {
       grouped[key].push(entry);
     });
 
+    timer.end({
+      totalEntries: entries.length,
+      groupedEntries: Object.keys(grouped).length,
+      period
+    });
+
+    logger.debug('Entries grouped by period', {
+      period,
+      totalGroups: Object.keys(grouped).length,
+      firstGroup: Object.keys(grouped)[0],
+      lastGroup: Object.keys(grouped)[Object.keys(grouped).length - 1]
+    });
+
     return grouped;
   }
 
   private convertToTimeSeriesPoints(groupedData: Record<string, IVideoEntry[]>): TimeSeriesPoint[] {
-    return Object.entries(groupedData)
+    const timer = createTimer('Time Series Point Conversion');
+    
+    const result = Object.entries(groupedData)
       .map(([date, entries]) => ({
         date: new Date(date),
         value: entries.length,
         label: date
       }))
       .sort((a, b) => a.date.getTime() - b.date.getTime());
+
+    timer.end({
+      totalPoints: result.length,
+      firstPointDate: result[0]?.date.toISOString(),
+      lastPointDate: result[result.length - 1]?.date.toISOString()
+    });
+
+    logger.debug('Time series points converted', {
+      totalPoints: result.length,
+      firstPoint: result[0]?.date.toISOString(),
+      lastPoint: result[result.length - 1]?.date.toISOString()
+    });
+
+    return result;
   }
 }

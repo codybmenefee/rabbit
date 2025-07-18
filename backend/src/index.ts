@@ -7,6 +7,7 @@ import { database } from './utils/database';
 import analyticsRoutes from './routes/analyticsRoutes';
 import { YouTubeAPIService } from './services/YouTubeAPIService';
 import { AnalyticsService } from './services/AnalyticsService';
+import { VideoService } from './services/VideoService';
 import { ParserService } from './services/ParserService';
 
 // Load environment variables
@@ -99,6 +100,7 @@ app.get('/', (req, res) => {
 // Initialize services
 let youtubeAPIService: YouTubeAPIService | null = null;
 let analyticsService: AnalyticsService;
+let videoService: VideoService;
 let parserService: ParserService;
 
 // Initialize YouTube API service if API key is provided
@@ -115,14 +117,16 @@ if (process.env.YOUTUBE_API_KEY) {
   logger.warn('YouTube API key not provided - API enrichment will be disabled');
 }
 
-// Initialize analytics and parser services
+// Initialize analytics, video, and parser services
 analyticsService = new AnalyticsService();
-parserService = new ParserService(youtubeAPIService!, analyticsService);
+videoService = new VideoService();
+parserService = new ParserService(youtubeAPIService!, analyticsService, videoService);
 
 // Make services available to routes
 app.locals.services = {
   youtubeAPI: youtubeAPIService,
   analytics: analyticsService,
+  video: videoService,
   parser: parserService
 };
 

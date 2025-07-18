@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { 
   CloudArrowUpIcon, 
   ChartBarIcon, 
-  CogIcon,
+  Cog6ToothIcon,
   DocumentTextIcon,
   ExclamationTriangleIcon,
   CheckCircleIcon,
@@ -101,6 +101,72 @@ export default function HomePage() {
     maxSize: 100 * 1024 * 1024 // 100MB
   });
 
+  // Poll for processing progress
+  const pollProgress = async (sessionId: string) => {
+    const maxAttempts = 600; // 5 minutes max (600 * 0.5s = 5min)
+    let attempts = 0;
+    
+    const progressInterval = setInterval(async () => {
+      attempts++;
+      
+      try {
+        const response = await axios.get(`${API_BASE_URL}/api/analytics/progress/${sessionId}`);
+        
+        if (response.data.success && response.data.progress) {
+          const progress = response.data.progress;
+          setProcessingProgress(progress.progress);
+          
+          if (progress.isComplete || progress.error) {
+            clearInterval(progressInterval);
+            
+            if (progress.error) {
+              toast.error(`Processing failed: ${progress.error}`);
+              setStep('upload');
+            } else {
+              setProcessingProgress(100);
+              toast.success('Processing completed successfully!');
+              
+              // Get the final result
+              try {
+                const resultResponse = await axios.get(`${API_BASE_URL}/api/analytics/metrics/${sessionId}`);
+                if (resultResponse.data.success) {
+                  setUploadResponse({
+                    success: true,
+                    sessionId: sessionId,
+                    metrics: resultResponse.data.metrics,
+                    processingStats: resultResponse.data.processingStats,
+                    summary: resultResponse.data.summary,
+                    quotaUsage: resultResponse.data.quotaUsage
+                  });
+                  
+                  setTimeout(() => {
+                    setStep('dashboard');
+                  }, 1500);
+                }
+              } catch (resultError) {
+                console.error('Error fetching results:', resultError);
+                toast.error('Processing completed but failed to load results');
+                setStep('upload');
+              }
+            }
+            setIsProcessing(false);
+          }
+        }
+      } catch (error) {
+        console.error('Error polling progress:', error);
+        // Don't clear interval on error - keep trying
+      }
+      
+      // Timeout after max attempts
+      if (attempts >= maxAttempts) {
+        clearInterval(progressInterval);
+        toast.error('Processing timeout - please try again');
+        setStep('upload');
+        setIsProcessing(false);
+      }
+    }, 500); // Poll every 500ms
+  };
+
   // Process uploaded file
   const processFile = async () => {
     if (!uploadedFile) {
@@ -121,18 +187,7 @@ export default function HomePage() {
       // Read file content
       const fileContent = await readFileAsText(uploadedFile);
       
-      // Simulate progress updates
-      const progressInterval = setInterval(() => {
-        setProcessingProgress(prev => {
-          if (prev >= 90) {
-            clearInterval(progressInterval);
-            return prev;
-          }
-          return prev + Math.random() * 10;
-        });
-      }, 500);
-
-      // Upload and process
+      // Start processing
       const response = await axios.post(`${API_BASE_URL}/api/analytics/upload`, {
         htmlContent: fileContent,
         options: processingOptions
@@ -143,16 +198,16 @@ export default function HomePage() {
         }
       });
 
-      clearInterval(progressInterval);
-      setProcessingProgress(100);
-
       if (response.data.success) {
+        // If we get an immediate response, processing is complete
         setUploadResponse(response.data);
+        setProcessingProgress(100);
         toast.success('Processing completed successfully!');
         
         setTimeout(() => {
           setStep('dashboard');
         }, 1500);
+        setIsProcessing(false);
       } else {
         throw new Error(response.data.message || 'Processing failed');
       }
@@ -160,17 +215,24 @@ export default function HomePage() {
     } catch (error: any) {
       console.error('Processing error:', error);
       
-      if (error.code === 'ECONNABORTED') {
-        toast.error('Processing timeout. Your file might be too large or complex.');
-      } else if (error.response?.status === 413) {
-        toast.error('File too large. Please try a smaller watch history file.');
+      // Check if this is because of async processing (session ID returned)
+      if (error.response?.data?.sessionId) {
+        // Start polling for progress
+        toast.loading('Processing started - tracking progress...');
+        pollProgress(error.response.data.sessionId);
       } else {
-        toast.error(error.response?.data?.message || 'Failed to process file. Please try again.');
+        // Handle regular errors
+        if (error.code === 'ECONNABORTED') {
+          toast.error('Processing timeout. Your file might be too large or complex.');
+        } else if (error.response?.status === 413) {
+          toast.error('File too large. Please try a smaller watch history file.');
+        } else {
+          toast.error(error.response?.data?.message || 'Failed to process file. Please try again.');
+        }
+        
+        setStep('upload');
+        setIsProcessing(false);
       }
-      
-      setStep('upload');
-    } finally {
-      setIsProcessing(false);
     }
   };
 
@@ -241,7 +303,7 @@ export default function HomePage() {
             {/* Processing Options */}
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-8">
               <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-                <CogIcon className="h-5 w-5 mr-2" />
+                <Cog6ToothIcon className="h-5 w-5 mr-2" />
                 Processing Options
               </h3>
               

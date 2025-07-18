@@ -6,7 +6,7 @@ import {
   TableCellsIcon, 
   ArrowLeftIcon,
   DocumentArrowDownIcon,
-  CogIcon,
+  Cog6ToothIcon,
   SparklesIcon
 } from '@heroicons/react/24/outline';
 
@@ -25,6 +25,21 @@ export default function DashboardLayout({
   quotaUsage,
   onBackToUpload 
 }: DashboardLayoutProps) {
+
+  // Helper function to format watch time
+  const formatWatchTime = (minutes: number) => {
+    const hours = Math.floor(minutes / 60);
+    const remainingMinutes = Math.round(minutes % 60);
+    
+    if (hours > 0 && remainingMinutes > 0) {
+      return `${hours}h ${remainingMinutes}m`;
+    } else if (hours > 0) {
+      return `${hours}h`;
+    } else {
+      return `${remainingMinutes}m`;
+    }
+  };
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -57,7 +72,7 @@ export default function DashboardLayout({
               <span>Export Data</span>
             </button>
             <button className="p-2 text-gray-400 hover:text-gray-600">
-              <CogIcon className="h-5 w-5" />
+                              <Cog6ToothIcon className="h-5 w-5" />
             </button>
           </div>
         </div>
@@ -87,8 +102,8 @@ export default function DashboardLayout({
                 <p className="text-sm font-medium text-gray-600">Watch Time</p>
                 <p className="text-2xl font-bold text-gray-900">
                   {initialMetrics?.totalWatchTime ? 
-                    `${Math.round(initialMetrics.totalWatchTime / 60)}h` : 
-                    '0h'
+                    formatWatchTime(initialMetrics.totalWatchTime) : 
+                    '0m'
                   }
                 </p>
               </div>

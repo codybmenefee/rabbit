@@ -36,6 +36,7 @@ export interface IVideoEntry {
   // Basic information from watch history
   title: string;
   channel: string;
+  channelId?: string;
   videoId?: string;
   watchedAt: Date;
   url: string;
@@ -73,6 +74,7 @@ export interface VideoEntryDocument extends IVideoEntry, Document {}
 const VideoEntrySchema = new Schema<VideoEntryDocument>({
   title: { type: String, required: true, index: true },
   channel: { type: String, required: true, index: true },
+  channelId: { type: String, sparse: true, index: true },
   videoId: { type: String, sparse: true, index: true },
   watchedAt: { type: Date, required: true, index: true },
   url: { type: String, required: true },
@@ -120,6 +122,6 @@ VideoEntrySchema.index({ watchedAt: -1 });
 VideoEntrySchema.index({ channel: 1, watchedAt: -1 });
 VideoEntrySchema.index({ category: 1, watchedAt: -1 });
 VideoEntrySchema.index({ contentType: 1, watchedAt: -1 });
-VideoEntrySchema.index({ videoId: 1 }, { sparse: true });
+// videoId index already defined in schema with sparse: true, index: true
 
 export const VideoEntry = model<VideoEntryDocument>('VideoEntry', VideoEntrySchema); 

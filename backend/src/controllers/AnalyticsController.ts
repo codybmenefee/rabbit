@@ -5,6 +5,7 @@ import { VideoMetrics } from '../models/Metrics';
 import { ParseOptions, ParseResult } from '../services/ParserService';
 import { YouTubeAPIService } from '../services/YouTubeAPIService';
 import { AnalyticsService } from '../services/AnalyticsService';
+import { VideoService } from '../services/VideoService';
 import { ParserService } from '../services/ParserService';
 import { VideoCategory } from '../models/VideoEntry';
 import { logger } from '../utils/logger';
@@ -47,8 +48,51 @@ export class AnalyticsController {
     return {
       parser: req.app.locals.services.parser as ParserService,
       analytics: req.app.locals.services.analytics as AnalyticsService,
+      video: req.app.locals.services.video as VideoService,
       youtubeAPI: req.app.locals.services.youtubeAPI as YouTubeAPIService | null
     };
+  }
+
+  /**
+   * Get processing progress for a session
+   */
+  public async getProgress(req: Request, res: Response): Promise<Response> {
+    try {
+      const sessionId = req.params.sessionId;
+      
+      if (!sessionId) {
+        return res.status(400).json({
+          error: 'Session ID is required',
+          timestamp: new Date().toISOString()
+        });
+      }
+
+      const services = this.getServices(req);
+      const progress = services.parser.getProgress(sessionId);
+      
+      if (!progress) {
+        return res.status(404).json({
+          error: 'Session not found or progress data not available',
+          sessionId,
+          timestamp: new Date().toISOString()
+        });
+      }
+
+      return res.status(200).json({
+        success: true,
+        progress,
+        timestamp: new Date().toISOString()
+      });
+
+    } catch (error) {
+      logger.error('Error retrieving progress:', error);
+      
+      return res.status(500).json({
+        error: 'Failed to retrieve progress',
+        message: error instanceof Error ? error.message : 'Unknown error occurred',
+        timestamp: new Date().toISOString()
+      });
+    }
   }
 
   /**
@@ -90,17 +134,20 @@ export class AnalyticsController {
           undefined
       };
 
+      // Generate session ID early so we can track progress
+      const sessionId = this.generateSessionId();
+
       logger.info('Processing watch history upload', {
+        sessionId,
         contentLength: htmlContent.length,
         options: parseOptions,
         ip: req.ip
       });
 
-      // Process the HTML file
-      const result = await services.parser.parseWatchHistory(htmlContent, parseOptions);
+      // Process the HTML file with session ID for progress tracking
+      const result = await services.parser.parseWatchHistory(htmlContent, parseOptions, sessionId);
       
-      // Generate session ID and store results
-      const sessionId = this.generateSessionId();
+      // Store results
       this.processedResults.set(sessionId, result);
       this.sessionData.set(sessionId, {
         entries: result.entries,
@@ -531,6 +578,173 @@ export class AnalyticsController {
     ]);
 
     return [headers.join(','), ...rows.map(row => row.join(','))].join('\n');
+  }
+
+  /**
+   * Get videos from database with pagination and filtering
+   */
+  public async getDatabaseVideos(req: Request, res: Response): Promise<Response> {
+    try {
+      const services = this.getServices(req);
+      
+      const page = parseInt(req.query.page as string) || 1;
+      const limit = Math.min(parseInt(req.query.limit as string) || 50, 200); // Max 200 per page
+      const offset = (page - 1) * limit;
+      const sortBy = req.query.sortBy as string || 'watchedAt';
+      const sortOrder = req.query.sortOrder as 'asc' | 'desc' || 'desc';
+      const channel = req.query.channel as string;
+      const category = req.query.category as string;
+      const contentType = req.query.contentType as string;
+      
+      // Parse date range if provided
+      let dateRange;
+      if (req.query.startDate && req.query.endDate) {
+        dateRange = {
+          start: new Date(req.query.startDate as string),
+          end: new Date(req.query.endDate as string)
+        };
+      }
+
+      const result = await services.video.queryVideos({
+        limit,
+        offset,
+        sortBy,
+        sortOrder,
+        dateRange,
+        channel,
+        category,
+        contentType
+      });
+
+      logger.info('Database videos queried', { 
+        page, 
+        limit, 
+        total: result.total, 
+        returned: result.videos.length,
+        ip: req.ip 
+      });
+
+      return res.status(200).json({
+        success: true,
+        data: {
+          videos: result.videos,
+          pagination: {
+            page,
+            limit,
+            total: result.total,
+            totalPages: Math.ceil(result.total / limit),
+            hasMore: result.hasMore
+          }
+        },
+        timestamp: new Date().toISOString()
+      });
+
+    } catch (error) {
+      logger.error('Error querying database videos:', error);
+      
+      return res.status(500).json({
+        error: 'Failed to retrieve videos from database',
+        message: error instanceof Error ? error.message : 'Unknown error occurred',
+        timestamp: new Date().toISOString()
+      });
+    }
+  }
+
+  /**
+   * Get video statistics from database
+   */
+  public async getDatabaseStats(req: Request, res: Response): Promise<Response> {
+    try {
+      const services = this.getServices(req);
+      
+      const stats = await services.video.getVideoStats();
+
+      logger.info('Database statistics generated', { 
+        totalVideos: stats.totalVideos,
+        totalChannels: stats.totalChannels,
+        ip: req.ip 
+      });
+
+      return res.status(200).json({
+        success: true,
+        data: stats,
+        timestamp: new Date().toISOString()
+      });
+
+    } catch (error) {
+      logger.error('Error generating database statistics:', error);
+      
+      return res.status(500).json({
+        error: 'Failed to generate database statistics',
+        message: error instanceof Error ? error.message : 'Unknown error occurred',
+        timestamp: new Date().toISOString()
+      });
+    }
+  }
+
+  /**
+   * Generate metrics from database videos
+   */
+  public async getDatabaseMetrics(req: Request, res: Response): Promise<Response> {
+    try {
+      const services = this.getServices(req);
+      
+      // Get filters from query parameters
+      const channel = req.query.channel as string;
+      const category = req.query.category as string;
+      const contentType = req.query.contentType as string;
+      
+      let dateRange;
+      if (req.query.startDate && req.query.endDate) {
+        dateRange = {
+          start: new Date(req.query.startDate as string),
+          end: new Date(req.query.endDate as string)
+        };
+      }
+
+      // Query videos from database (get all for metrics generation)
+      const result = await services.video.queryVideos({
+        limit: 10000, // Large limit for metrics generation
+        offset: 0,
+        dateRange,
+        channel,
+        category,
+        contentType
+      });
+
+      // Generate metrics from database videos
+      const metrics = await services.analytics.generateMetrics(result.videos);
+
+      logger.info('Database metrics generated', { 
+        videosAnalyzed: result.videos.length,
+        hasFilters: !!(channel || category || contentType || dateRange),
+        ip: req.ip 
+      });
+
+      return res.status(200).json({
+        success: true,
+        data: {
+          metrics,
+          videosAnalyzed: result.videos.length,
+          filters: {
+            channel,
+            category,
+            contentType,
+            dateRange
+          }
+        },
+        timestamp: new Date().toISOString()
+      });
+
+    } catch (error) {
+      logger.error('Error generating metrics from database:', error);
+      
+      return res.status(500).json({
+        error: 'Failed to generate metrics from database',
+        message: error instanceof Error ? error.message : 'Unknown error occurred',
+        timestamp: new Date().toISOString()
+      });
+    }
   }
 }
 

@@ -7,13 +7,14 @@ import {
   ChevronLeftIcon,
   PlayIcon,
   DocumentTextIcon,
-  DownloadIcon,
+  ArrowDownTrayIcon,
   FolderOpenIcon,
   CloudArrowUpIcon,
   CheckCircleIcon,
   ExclamationTriangleIcon,
   GlobeAltIcon,
-  ClockIcon
+  ClockIcon,
+  Cog6ToothIcon
 } from '@heroicons/react/24/outline';
 
 interface TakeoutGuideProps {
@@ -134,7 +135,7 @@ export default function TakeoutGuide({ onContinue, isConnected, onRetryConnectio
       title: "Configure Export Format",
       description: "Set the correct format for your watch history",
       estimatedTime: "2 minutes",
-      icon: CogIcon,
+      icon: Cog6ToothIcon,
       content: (
         <div className="space-y-4">
           <div className="bg-green-50 border border-green-200 rounded-lg p-4">
@@ -246,7 +247,7 @@ export default function TakeoutGuide({ onContinue, isConnected, onRetryConnectio
       title: "Download & Extract",
       description: "Get your exported data ready for analysis",
       estimatedTime: "Variable",
-      icon: DownloadIcon,
+      icon: ArrowDownTrayIcon,
       content: (
         <div className="space-y-4">
           <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
