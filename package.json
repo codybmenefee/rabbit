@@ -1,5 +1,69 @@
 {
-  "dependencies": {
-    "axios": "^1.10.0"
-  }
+  "name": "rabbit-analytics-platform",
+  "version": "2.0.0",
+  "description": "YouTube Analytics Platform - Complete Testing Suite",
+  "private": true,
+  "workspaces": [
+    "frontend",
+    "backend",
+    "tests/e2e"
+  ],
+  "scripts": {
+    "test": "npm run test:backend && npm run test:frontend",
+    "test:all": "npm run test:backend && npm run test:frontend && npm run test:e2e",
+    "test:backend": "cd backend && npm test",
+    "test:frontend": "cd frontend && npm test",
+    "test:e2e": "cd tests/e2e && npx playwright test",
+    "test:unit": "npm run test:backend:unit && npm run test:frontend",
+    "test:integration": "npm run test:backend:integration",
+    "test:backend:unit": "cd backend && npm run test:unit",
+    "test:backend:integration": "cd backend && npm run test:integration",
+    "test:coverage": "npm run test:backend:coverage && npm run test:frontend:coverage",
+    "test:backend:coverage": "cd backend && npm run test:coverage",
+    "test:frontend:coverage": "cd frontend && npm run test:coverage",
+    "test:watch": "concurrently \"npm run test:backend:watch\" \"npm run test:frontend:watch\"",
+    "test:backend:watch": "cd backend && npm run test:watch",
+    "test:frontend:watch": "cd frontend && npm run test:watch",
+    "test:ci": "npm run test:backend:ci && npm run test:frontend:ci && npm run test:e2e:ci",
+    "test:backend:ci": "cd backend && npm run test:ci",
+    "test:frontend:ci": "cd frontend && npm run test:ci",
+    "test:e2e:ci": "cd tests/e2e && npx playwright test --project=chromium",
+    "install:all": "npm install && cd backend && npm install && cd ../frontend && npm install && cd ../tests/e2e && npm install",
+    "setup:e2e": "cd tests/e2e && npx playwright install",
+    "lint": "npm run lint:backend && npm run lint:frontend",
+    "lint:backend": "cd backend && npm run lint",
+    "lint:frontend": "cd frontend && npm run lint",
+    "lint:fix": "npm run lint:backend:fix && npm run lint:frontend:fix",
+    "lint:backend:fix": "cd backend && npm run lint:fix",
+    "lint:frontend:fix": "cd frontend && npm run lint:fix",
+    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "dev:backend": "cd backend && npm run dev",
+    "dev:frontend": "cd frontend && npm run dev",
+    "build": "npm run build:backend && npm run build:frontend",
+    "build:backend": "cd backend && npm run build",
+    "build:frontend": "cd frontend && npm run build",
+    "clean": "rm -rf backend/dist backend/coverage frontend/.next frontend/coverage tests/e2e/test-results tests/e2e/playwright-report"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=9.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/your-org/rabbit-analytics.git"
+  },
+  "keywords": [
+    "youtube",
+    "analytics",
+    "testing",
+    "jest",
+    "playwright",
+    "react",
+    "nodejs"
+  ],
+  "author": "Rabbit Analytics Team",
+  "license": "MIT"
 }
