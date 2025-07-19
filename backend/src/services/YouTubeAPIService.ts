@@ -563,8 +563,17 @@ export class YouTubeAPIService {
     const snippet = videoData.snippet;
     const duration = entry.duration || 0;
 
-    // Check for YouTube Shorts (under 60 seconds and vertical)
-    if (duration <= 60) {
+    // Check for YouTube Shorts - prioritize URL pattern over duration
+    // Only classify as SHORT if URL contains /shorts/ OR (duration <= 60 AND has vertical aspect ratio indicators)
+    if (entry.url && entry.url.includes('/shorts/')) {
+      return ContentType.SHORT;
+    }
+
+    // Additional check for Shorts based on duration for videos that might have been transcoded
+    // but be more conservative - only very short videos with specific characteristics
+    if (duration <= 30 && duration > 0) {
+      // Only classify as SHORT if it's very short (30 seconds or less)
+      // This is more conservative than the previous 60-second threshold
       return ContentType.SHORT;
     }
 
@@ -578,6 +587,7 @@ export class YouTubeAPIService {
       return ContentType.PREMIERE;
     }
 
+    // Default to regular video - this preserves the original content type for most videos
     return ContentType.VIDEO;
   }
 

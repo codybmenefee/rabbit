@@ -25,8 +25,14 @@ import DashboardLayout from '../components/DashboardLayout';
 // API Configuration
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
 
+type EnrichmentService = 'api' | 'scraping' | 'high-performance';
+
 interface ProcessingOptions {
   enrichWithAPI: boolean;
+  useScrapingService: boolean;
+  useHighPerformanceService: boolean;
+  selectedService: EnrichmentService;
+  forceReprocessing: boolean;
   includeAds: boolean;
   includeShorts: boolean;
 }
@@ -47,6 +53,10 @@ export default function HomePage() {
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [processingOptions, setProcessingOptions] = useState<ProcessingOptions>({
     enrichWithAPI: true,
+    useScrapingService: false,
+    useHighPerformanceService: false,
+    selectedService: 'api' as EnrichmentService,
+    forceReprocessing: false,
     includeAds: false,
     includeShorts: true
   });
@@ -187,10 +197,26 @@ export default function HomePage() {
       // Read file content
       const fileContent = await readFileAsText(uploadedFile);
       
+      // Debug: Log current processing options before transformation
+      console.log('🔍 Frontend Debug: Current processingOptions:', processingOptions);
+      
+      // Transform processing options to match backend API
+      const apiOptions = {
+        enrichWithAPI: processingOptions.enrichWithAPI,
+        useScrapingService: processingOptions.selectedService === 'scraping',
+        useHighPerformanceService: processingOptions.selectedService === 'high-performance',
+        forceReprocessing: processingOptions.forceReprocessing,
+        includeAds: processingOptions.includeAds,
+        includeShorts: processingOptions.includeShorts
+      };
+
+      console.log('🔍 Frontend Debug: Transformed apiOptions:', apiOptions);
+      console.log('🔍 Frontend Debug: forceReprocessing value:', processingOptions.forceReprocessing);
+
       // Start processing
       const response = await axios.post(`${API_BASE_URL}/api/analytics/upload`, {
         htmlContent: fileContent,
-        options: processingOptions
+        options: apiOptions
       }, {
         timeout: 300000, // 5 minute timeout
         headers: {
@@ -307,68 +333,220 @@ export default function HomePage() {
                 Processing Options
               </h3>
               
-              <div className="space-y-4">
-                <label className="flex items-start space-x-3">
-                  <input
-                    type="checkbox"
-                    checked={processingOptions.enrichWithAPI}
-                    onChange={(e) => setProcessingOptions(prev => ({
-                      ...prev,
-                      enrichWithAPI: e.target.checked
-                    }))}
-                    className="mt-1 h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
-                  />
-                  <div>
-                    <span className="text-sm font-medium text-gray-900">
-                      Enrich with YouTube API data
-                    </span>
-                    <p className="text-sm text-gray-500">
-                      Fetch additional metadata like video categories, view counts, and durations.
-                      Requires YouTube API key configuration.
-                    </p>
-                  </div>
-                </label>
+              <div className="space-y-6">
+                {/* Enrichment Service Selection */}
+                <div>
+                  <label className="flex items-start space-x-3 mb-3">
+                    <input
+                      type="checkbox"
+                      checked={processingOptions.enrichWithAPI}
+                      onChange={(e) => setProcessingOptions(prev => ({
+                        ...prev,
+                        enrichWithAPI: e.target.checked
+                      }))}
+                      className="mt-1 h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+                    />
+                    <div>
+                      <span className="text-sm font-medium text-gray-900">
+                        Enable video enrichment
+                      </span>
+                      <p className="text-sm text-gray-500">
+                        Fetch additional metadata like video categories, view counts, and durations.
+                      </p>
+                    </div>
+                  </label>
 
-                <label className="flex items-start space-x-3">
-                  <input
-                    type="checkbox"
-                    checked={processingOptions.includeShorts}
-                    onChange={(e) => setProcessingOptions(prev => ({
-                      ...prev,
-                      includeShorts: e.target.checked
-                    }))}
-                    className="mt-1 h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
-                  />
-                  <div>
-                    <span className="text-sm font-medium text-gray-900">
-                      Include YouTube Shorts
-                    </span>
-                    <p className="text-sm text-gray-500">
-                      Include short-form videos in your analytics.
-                    </p>
-                  </div>
-                </label>
+                  {/* Service Type Selection */}
+                  {processingOptions.enrichWithAPI && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      exit={{ opacity: 0, height: 0 }}
+                      className="ml-7 space-y-3 border-l-2 border-gray-100 pl-4"
+                    >
+                      <p className="text-sm font-medium text-gray-700 mb-2">Choose enrichment service:</p>
+                      
+                      <label className="flex items-start space-x-3">
+                        <input
+                          type="radio"
+                          name="enrichmentService"
+                          checked={processingOptions.selectedService === 'api'}
+                          onChange={() => setProcessingOptions(prev => ({
+                            ...prev,
+                            selectedService: 'api',
+                            useScrapingService: false,
+                            useHighPerformanceService: false
+                          }))}
+                          className="mt-1 h-4 w-4 text-blue-600 border-gray-300 focus:ring-blue-500"
+                        />
+                        <div>
+                          <span className="text-sm font-medium text-gray-800">
+                            YouTube API <span className="text-green-600 text-xs">(RECOMMENDED)</span>
+                          </span>
+                          <p className="text-sm text-gray-500">
+                            Fast and accurate using official YouTube Data API. Requires API key.
+                          </p>
+                        </div>
+                      </label>
 
-                <label className="flex items-start space-x-3">
-                  <input
-                    type="checkbox"
-                    checked={processingOptions.includeAds}
-                    onChange={(e) => setProcessingOptions(prev => ({
-                      ...prev,
-                      includeAds: e.target.checked
-                    }))}
-                    className="mt-1 h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
-                  />
-                  <div>
-                    <span className="text-sm font-medium text-gray-900">
-                      Include advertisements
-                    </span>
-                    <p className="text-sm text-gray-500">
-                      Include ads and sponsored content in your analytics.
-                    </p>
+                      <label className="flex items-start space-x-3">
+                        <input
+                          type="radio"
+                          name="enrichmentService"
+                          checked={processingOptions.selectedService === 'scraping'}
+                          onChange={() => setProcessingOptions(prev => ({
+                            ...prev,
+                            selectedService: 'scraping',
+                            useScrapingService: true,
+                            useHighPerformanceService: false
+                          }))}
+                          className="mt-1 h-4 w-4 text-blue-600 border-gray-300 focus:ring-blue-500"
+                        />
+                        <div>
+                          <span className="text-sm font-medium text-gray-800">
+                            Web Scraping <span className="text-amber-600 text-xs">(SLOWER)</span>
+                          </span>
+                          <p className="text-sm text-gray-500">
+                            No API key required but slower processing. Good fallback option.
+                          </p>
+                        </div>
+                      </label>
+
+                      <label className="flex items-start space-x-3">
+                        <input
+                          type="radio"
+                          name="enrichmentService"
+                          checked={processingOptions.selectedService === 'high-performance'}
+                          onChange={() => setProcessingOptions(prev => ({
+                            ...prev,
+                            selectedService: 'high-performance',
+                            useScrapingService: false,
+                            useHighPerformanceService: true
+                          }))}
+                          className="mt-1 h-4 w-4 text-blue-600 border-gray-300 focus:ring-blue-500"
+                        />
+                        <div>
+                          <span className="text-sm font-medium text-gray-800">
+                            High-Performance Scraping <span className="text-purple-600 text-xs">(EXPERIMENTAL)</span>
+                          </span>
+                          <p className="text-sm text-gray-500">
+                            Parallel processing with worker threads. Fastest scraping option for large datasets.
+                          </p>
+                        </div>
+                      </label>
+                    </motion.div>
+                  )}
+                </div>
+
+                {/* Content Filters */}
+                <div className="border-t border-gray-100 pt-4">
+                  <p className="text-sm font-medium text-gray-700 mb-3">Content filters:</p>
+                  
+                  <div className="space-y-3">
+                    <label className="flex items-start space-x-3">
+                      <input
+                        type="checkbox"
+                        checked={processingOptions.includeShorts}
+                        onChange={(e) => setProcessingOptions(prev => ({
+                          ...prev,
+                          includeShorts: e.target.checked
+                        }))}
+                        className="mt-1 h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+                      />
+                      <div>
+                        <span className="text-sm font-medium text-gray-900">
+                          Include YouTube Shorts
+                        </span>
+                        <p className="text-sm text-gray-500">
+                          Include short-form videos in your analytics.
+                        </p>
+                      </div>
+                    </label>
+
+                    <label className="flex items-start space-x-3">
+                      <input
+                        type="checkbox"
+                        checked={processingOptions.includeAds}
+                        onChange={(e) => setProcessingOptions(prev => ({
+                          ...prev,
+                          includeAds: e.target.checked
+                        }))}
+                        className="mt-1 h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+                      />
+                      <div>
+                        <span className="text-sm font-medium text-gray-900">
+                          Include advertisements
+                        </span>
+                        <p className="text-sm text-gray-500">
+                          Include ads and sponsored content in your analytics.
+                        </p>
+                      </div>
+                    </label>
+
+                    <label className="flex items-start space-x-3">
+                      <input
+                        type="checkbox"
+                        checked={processingOptions.forceReprocessing}
+                        onChange={(e) => {
+                          console.log('🔍 Force reprocessing checkbox clicked:', e.target.checked);
+                          setProcessingOptions(prev => {
+                            const newOptions = {
+                              ...prev,
+                              forceReprocessing: e.target.checked
+                            };
+                            console.log('🔍 Updated processingOptions:', newOptions);
+                            return newOptions;
+                          });
+                        }}
+                        className="mt-1 h-4 w-4 text-orange-600 rounded border-gray-300 focus:ring-orange-500"
+                      />
+                      <div>
+                        <span className="text-sm font-medium text-gray-900">
+                          Force reprocess all videos
+                        </span>
+                        <p className="text-sm text-gray-500">
+                          Reprocess all videos, even if they already exist in the database. Use for high-performance scraping mode.
+                        </p>
+                      </div>
+                    </label>
                   </div>
-                </label>
+                </div>
               </div>
+
+              {/* Service Status Indicator */}
+              {processingOptions.enrichWithAPI && (
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className={`mt-4 p-3 rounded-lg border-l-4 ${
+                    processingOptions.selectedService === 'api' 
+                      ? 'bg-green-50 border-green-400' 
+                      : processingOptions.selectedService === 'high-performance'
+                      ? 'bg-purple-50 border-purple-400'
+                      : 'bg-amber-50 border-amber-400'
+                  }`}
+                >
+                  <div className="flex items-center">
+                    <div className={`h-2 w-2 rounded-full mr-2 ${
+                      processingOptions.selectedService === 'api' 
+                        ? 'bg-green-500' 
+                        : processingOptions.selectedService === 'high-performance'
+                        ? 'bg-purple-500'
+                        : 'bg-amber-500'
+                    }`} />
+                    <span className="text-sm font-medium">
+                      {processingOptions.selectedService === 'api' && 'YouTube API selected'}
+                      {processingOptions.selectedService === 'scraping' && 'Web Scraping selected'}
+                      {processingOptions.selectedService === 'high-performance' && 'High-Performance Scraping selected'}
+                    </span>
+                  </div>
+                  <p className="text-xs text-gray-600 mt-1 ml-4">
+                    {processingOptions.selectedService === 'api' && 'Fastest and most accurate enrichment method'}
+                    {processingOptions.selectedService === 'scraping' && 'No API key required, but processing will be slower'}
+                    {processingOptions.selectedService === 'high-performance' && 'Experimental parallel processing - best for large datasets'}
+                  </p>
+                </motion.div>
+              )}
             </div>
 
             {/* File Upload Area */}
@@ -432,7 +610,16 @@ export default function HomePage() {
                     className="px-6 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
                   >
                     <ChartBarIcon className="h-4 w-4" />
-                    <span>Start Analysis</span>
+                    <span>
+                      {processingOptions.enrichWithAPI 
+                        ? `Start Analysis (${
+                            processingOptions.selectedService === 'api' ? 'API' :
+                            processingOptions.selectedService === 'high-performance' ? 'High-Perf' :
+                            'Scraping'
+                          })`
+                        : 'Start Analysis (Basic)'
+                      }
+                    </span>
                   </button>
                 </motion.div>
               )}

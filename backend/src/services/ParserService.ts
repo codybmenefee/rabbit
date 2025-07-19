@@ -3,6 +3,7 @@ import { IVideoEntry, ContentType, VideoCategory } from '../models/VideoEntry';
 import { VideoMetrics } from '../models/Metrics';
 import { YouTubeAPIService } from './YouTubeAPIService';
 import { YouTubeScrapingService } from './YouTubeScrapingService';
+import { YouTubeHighPerformanceScrapingService } from './YouTubeHighPerformanceScrapingService';
 import { AnalyticsService } from './AnalyticsService';
 import { VideoService } from './VideoService';
 import { logger, createTimer, debugVideoProcessing } from '../utils/logger';
@@ -10,6 +11,8 @@ import { logger, createTimer, debugVideoProcessing } from '../utils/logger';
 export interface ParseOptions {
   enrichWithAPI: boolean;
   useScrapingService: boolean; // New option to choose between API and scraping
+  useHighPerformanceService?: boolean; // New option for high-performance scraping
+  forceReprocessing?: boolean; // New option to skip duplicate checking and reprocess all videos
   includeAds: boolean;
   includeShorts: boolean;
   dateRange?: {
@@ -51,6 +54,7 @@ export interface ProcessingProgress {
 export class ParserService {
   private youtubeAPI: YouTubeAPIService;
   private youtubeScraping: YouTubeScrapingService | null;
+  private youtubeHighPerformanceScraping: YouTubeHighPerformanceScrapingService | null;
   private analyticsService: AnalyticsService;
   private videoService: VideoService;
   
@@ -61,10 +65,12 @@ export class ParserService {
     youtubeAPI: YouTubeAPIService, 
     analyticsService: AnalyticsService, 
     videoService: VideoService,
-    youtubeScraping?: YouTubeScrapingService
+    youtubeScraping?: YouTubeScrapingService,
+    youtubeHighPerformanceScraping?: YouTubeHighPerformanceScrapingService
   ) {
     this.youtubeAPI = youtubeAPI;
     this.youtubeScraping = youtubeScraping || null;
+    this.youtubeHighPerformanceScraping = youtubeHighPerformanceScraping || null;
     this.analyticsService = analyticsService;
     this.videoService = videoService;
   }
@@ -134,6 +140,7 @@ export class ParserService {
       enrichWithAPI: options.enrichWithAPI,
       includeAds: options.includeAds,
       includeShorts: options.includeShorts,
+      forceReprocessing: options.forceReprocessing,
       hasDateRange: !!options.dateRange,
       categoryFiltersCount: options.categoryFilters?.length || 0
     });
@@ -172,53 +179,114 @@ export class ParserService {
         conversionSuccessRate: ((videoEntries.length / rawEntries.length) * 100).toFixed(1) + '%'
       });
 
-      this.updateProgress(sessionIdToUse, 'deduplication', 35, 'Checking for duplicates in database...', { 
-        totalEntries: videoEntries.length 
-      });
-      
-      // Check for duplicates against database
-      timer.stage('Database Duplicate Check');
-      const duplicateCheckResult = await this.videoService.checkForDuplicates(videoEntries);
-      const newVideos = duplicateCheckResult.newVideos;
-      const existingVideos = duplicateCheckResult.existingVideos;
-      const duplicatesRemoved = duplicateCheckResult.duplicateCount;
-      
-      logger.info(`Database duplicate check: ${duplicatesRemoved} existing videos found, ${newVideos.length} new videos to process`);
-      logger.debug('Database duplicate check results', {
-        totalVideos: videoEntries.length,
-        existingVideos: duplicatesRemoved,
-        newVideos: newVideos.length,
-        duplicateRate: ((duplicatesRemoved / videoEntries.length) * 100).toFixed(1) + '%'
-      });
-      debugVideoProcessing.duplicatesRemoved(videoEntries.length, newVideos.length);
+      let limitedEntries: IVideoEntry[];
+      let existingVideos: Map<string, any> = new Map();
+      let duplicatesRemoved = 0;
 
-      // Video limiting removed - processing all new videos
-      const limitedEntries = newVideos;
-      logger.info(`Processing all ${newVideos.length} new videos (no limit applied)`);
+      // DEBUG: Check forceReprocessing option before condition
+      logger.info('🔍 FORCE REPROCESSING DEBUG: Checking condition...', {
+        forceReprocessing: options.forceReprocessing,
+        forceReprocessingType: typeof options.forceReprocessing,
+        optionsObject: options,
+        conditionWillMatch: !!options.forceReprocessing
+      });
+
+      // More explicit check to handle potential type issues
+      const shouldForceReprocess = options.forceReprocessing === true || String(options.forceReprocessing) === 'true';
+      logger.info('🔍 EXPLICIT FORCE CHECK:', { shouldForceReprocess, originalValue: options.forceReprocessing });
+
+      if (shouldForceReprocess) {
+        // Skip duplicate checking when force reprocessing is enabled
+        this.updateProgress(sessionIdToUse, 'deduplication', 35, 'Skipping duplicate check - force reprocessing all videos...', { 
+          totalEntries: videoEntries.length 
+        });
+        
+        timer.stage('Force Reprocessing - Skip Duplicate Check');
+        limitedEntries = videoEntries;
+        logger.info(`🚀 FORCE REPROCESSING ENABLED: Processing all ${videoEntries.length} videos (skipping duplicate check)`);
+        logger.info('🔍 FORCE REPROCESSING DEBUG: Duplicate check skipped', {
+          totalVideos: videoEntries.length,
+          forceReprocessing: true,
+          reason: 'User requested reprocessing of all videos - will process all videos and let upsert handle duplicates',
+          videoEntryTypes: videoEntries.slice(0, 5).map(v => ({ title: v.title.substring(0, 50), contentType: v.contentType, category: v.category }))
+        });
+      } else {
+        // Check for duplicates against database
+        this.updateProgress(sessionIdToUse, 'deduplication', 35, 'Checking for duplicates in database...', { 
+          totalEntries: videoEntries.length 
+        });
+        
+        timer.stage('Database Duplicate Check');
+        const duplicateCheckResult = await this.videoService.checkForDuplicates(videoEntries);
+        const newVideos = duplicateCheckResult.newVideos;
+        existingVideos = duplicateCheckResult.existingVideos;
+        duplicatesRemoved = duplicateCheckResult.duplicateCount;
+        
+        logger.info(`Database duplicate check: ${duplicatesRemoved} existing videos found, ${newVideos.length} new videos to process`);
+        logger.debug('Database duplicate check results', {
+          totalVideos: videoEntries.length,
+          existingVideos: duplicatesRemoved,
+          newVideos: newVideos.length,
+          duplicateRate: ((duplicatesRemoved / videoEntries.length) * 100).toFixed(1) + '%'
+        });
+        debugVideoProcessing.duplicatesRemoved(videoEntries.length, newVideos.length);
+
+        limitedEntries = newVideos;
+      }
+
+      logger.info(`Processing ${limitedEntries.length} videos (${shouldForceReprocess ? 'force reprocessing enabled' : 'new videos only'})`);
 
       // Apply initial filters (date range and categories only - content type filtering happens after enrichment)
       timer.stage('Pre-enrichment Filtering');
       const preFilteredEntries = this.applyPreEnrichmentFilters(limitedEntries, options);
       logger.info(`Applied pre-enrichment filters, ${preFilteredEntries.length} entries remaining`);
-      logger.debug('Pre-enrichment filtering results', {
+      logger.info('🔍 FILTER DEBUG: Pre-enrichment filtering results', {
         beforeFiltering: limitedEntries.length,
         afterFiltering: preFilteredEntries.length,
         filteredOut: limitedEntries.length - preFilteredEntries.length,
         hasDateRangeFilter: !!options.dateRange,
-        hasCategoryFilters: !!(options.categoryFilters && options.categoryFilters.length > 0)
+        hasCategoryFilters: !!(options.categoryFilters && options.categoryFilters.length > 0),
+        dateRange: options.dateRange ? {
+          start: options.dateRange.start.toISOString(),
+          end: options.dateRange.end.toISOString()
+        } : null,
+        categoryFilters: options.categoryFilters || null
       });
 
-      this.updateProgress(sessionIdToUse, 'enrichment_start', 45, 'Starting YouTube API enrichment...', { 
+      // Log warning if too many videos filtered out
+      if (preFilteredEntries.length < limitedEntries.length * 0.1) {
+        logger.warn('🚨 WARNING: Most videos filtered out by pre-enrichment filters!', {
+          originalCount: limitedEntries.length,
+          remainingCount: preFilteredEntries.length,
+          filteringRate: ((limitedEntries.length - preFilteredEntries.length) / limitedEntries.length * 100).toFixed(1) + '%'
+        });
+      }
+
+      this.updateProgress(sessionIdToUse, 'enrichment_start', 45, 'Starting enrichment service...', { 
         totalEntries: preFilteredEntries.length,
         enrichWithAPI: options.enrichWithAPI 
       });
       
-      // Enrich with YouTube API or Scraping Service if requested
+      // Enrich with YouTube API, Scraping Service, or High-Performance Scraping Service if requested
       let enrichedEntries = preFilteredEntries;
       if (options.enrichWithAPI) {
+        // Service selection priority: High-Performance > Scraping > API
+        const useHighPerformanceService = options.useHighPerformanceService || false;
         const useScrapingService = options.useScrapingService || false;
-        const serviceName = useScrapingService ? 'Scraping' : 'API';
-        const service = useScrapingService ? this.youtubeScraping : this.youtubeAPI;
+        
+        let serviceName: string;
+        let service: any;
+        
+        if (useHighPerformanceService && this.youtubeHighPerformanceScraping) {
+          serviceName = 'High-Performance Scraping';
+          service = this.youtubeHighPerformanceScraping;
+        } else if (useScrapingService && this.youtubeScraping) {
+          serviceName = 'Scraping';
+          service = this.youtubeScraping;
+        } else {
+          serviceName = 'API';
+          service = this.youtubeAPI;
+        }
         
         if (service) {
           try {
@@ -226,7 +294,9 @@ export class ParserService {
             logger.debug(`Starting ${serviceName.toLowerCase()} enrichment process`, {
               totalEntries: preFilteredEntries.length,
               serviceType: serviceName,
-              serviceAvailable: !!service
+              serviceAvailable: !!service,
+              highPerformanceRequested: useHighPerformanceService,
+              scrapingRequested: useScrapingService
             });
             
             this.updateProgress(sessionIdToUse, 'enrichment_processing', 50, `Enriching ${preFilteredEntries.length} videos with YouTube ${serviceName}...`, { 

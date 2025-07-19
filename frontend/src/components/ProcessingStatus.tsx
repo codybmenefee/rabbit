@@ -18,6 +18,10 @@ interface ProcessingStatusProps {
   uploadedFileName?: string;
   processingOptions: {
     enrichWithAPI: boolean;
+    useScrapingService: boolean;
+    useHighPerformanceService: boolean;
+    selectedService: 'api' | 'scraping' | 'high-performance';
+    forceReprocessing: boolean;
     includeAds: boolean;
     includeShorts: boolean;
   };
@@ -29,6 +33,23 @@ export default function ProcessingStatus({
   uploadedFileName,
   processingOptions
 }: ProcessingStatusProps) {
+  const getEnrichmentDescription = () => {
+    if (!processingOptions.enrichWithAPI) {
+      return "Skipping enrichment - using basic data only";
+    }
+    
+    switch (processingOptions.selectedService) {
+      case 'api':
+        return "Fetching YouTube metadata via official API";
+      case 'scraping':
+        return "Extracting data via web scraping";
+      case 'high-performance':
+        return "High-speed parallel processing with worker threads";
+      default:
+        return "Fetching YouTube metadata";
+    }
+  };
+
   const processingSteps = [
     {
       id: 1,
@@ -46,8 +67,11 @@ export default function ProcessingStatus({
     },
     {
       id: 3,
-      name: "API Enrichment",
-      description: processingOptions.enrichWithAPI ? "Fetching YouTube metadata" : "Skipping API enrichment",
+      name: processingOptions.enrichWithAPI ? 
+        `${processingOptions.selectedService === 'api' ? 'API' : 
+          processingOptions.selectedService === 'high-performance' ? 'High-Performance' : 'Web'} Enrichment` : 
+        "Basic Processing",
+      description: getEnrichmentDescription(),
       icon: GlobeAltIcon,
       threshold: 70
     },
@@ -79,8 +103,14 @@ export default function ProcessingStatus({
       {/* Header */}
       <div className="mb-12">
         <motion.div
-          animate={{ rotate: isComplete ? 0 : 360 }}
-          transition={{ duration: 2, repeat: isComplete ? 0 : Infinity, ease: "linear" }}
+          animate={{ 
+            rotate: isComplete ? 0 : 360,
+            scale: processingOptions.selectedService === 'high-performance' ? [1, 1.1, 1] : 1
+          }}
+          transition={{ 
+            rotate: { duration: 2, repeat: isComplete ? 0 : Infinity, ease: "linear" },
+            scale: { duration: 1, repeat: Infinity, ease: "easeInOut" }
+          }}
           className="inline-block mb-6"
         >
           {isComplete ? (
@@ -88,8 +118,16 @@ export default function ProcessingStatus({
               <CheckCircleIcon className="h-8 w-8 text-green-600" />
             </div>
           ) : (
-            <div className="h-16 w-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto">
-              <CpuChipIcon className="h-8 w-8 text-blue-600" />
+            <div className={`h-16 w-16 rounded-full flex items-center justify-center mx-auto ${
+              processingOptions.selectedService === 'high-performance' 
+                ? 'bg-purple-100' 
+                : 'bg-blue-100'
+            }`}>
+              <CpuChipIcon className={`h-8 w-8 ${
+                processingOptions.selectedService === 'high-performance' 
+                  ? 'text-purple-600' 
+                  : 'text-blue-600'
+              }`} />
             </div>
           )}
         </motion.div>
@@ -97,6 +135,17 @@ export default function ProcessingStatus({
         <h1 className="text-3xl font-bold text-gray-900 mb-4">
           {isComplete ? 'Analysis Complete!' : 'Processing Your Data'}
         </h1>
+
+        {processingOptions.selectedService === 'high-performance' && !isComplete && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="mb-4 inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800"
+          >
+            <SparklesIcon className="h-3 w-3 mr-1" />
+            High-Performance Mode Active
+          </motion.div>
+        )}
         
         <p className="text-lg text-gray-600 mb-2">
           {isComplete 
@@ -234,6 +283,12 @@ export default function ProcessingStatus({
             <div className={`h-2 w-2 rounded-full ${processingOptions.includeAds ? 'bg-green-500' : 'bg-gray-300'}`} />
             <span className={processingOptions.includeAds ? 'text-gray-900' : 'text-gray-500'}>
               Advertisements
+            </span>
+          </div>
+          <div className="flex items-center space-x-2">
+            <div className={`h-2 w-2 rounded-full ${processingOptions.forceReprocessing ? 'bg-orange-500' : 'bg-gray-300'}`} />
+            <span className={processingOptions.forceReprocessing ? 'text-gray-900' : 'text-gray-500'}>
+              Force Reprocessing
             </span>
           </div>
         </div>

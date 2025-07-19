@@ -16,6 +16,8 @@ const uploadRequestSchema = z.object({
   options: z.object({
     enrichWithAPI: z.boolean().default(false),
     useScrapingService: z.boolean().default(false),
+    useHighPerformanceService: z.boolean().default(false),
+    forceReprocessing: z.boolean().default(false),
     includeAds: z.boolean().default(false),
     includeShorts: z.boolean().default(true),
     dateRange: z.object({
@@ -103,6 +105,12 @@ export class AnalyticsController {
     const startTime = Date.now();
     
     try {
+      // Debug: Log the raw request body options
+      logger.info('🔍🔍🔍 RAW REQUEST BODY OPTIONS 🔍🔍🔍', {
+        options: req.body.options,
+        forceReprocessing: req.body.options?.forceReprocessing
+      });
+
       // Validate request
       const validation = uploadRequestSchema.safeParse(req.body);
       if (!validation.success) {
@@ -135,6 +143,27 @@ export class AnalyticsController {
           options.categoryFilters.map(cat => cat as VideoCategory) : 
           undefined
       };
+
+      // Debug: Log the exact options being passed to parser
+      logger.info('🔍🔍🔍 BACKEND OPTIONS DEBUG: Parse options being sent to parser 🔍🔍🔍', {
+        enrichWithAPI: parseOptions.enrichWithAPI,
+        useScrapingService: parseOptions.useScrapingService,
+        useHighPerformanceService: parseOptions.useHighPerformanceService,
+        forceReprocessing: parseOptions.forceReprocessing,
+        includeAds: parseOptions.includeAds,
+        includeShorts: parseOptions.includeShorts,
+        hasDateRange: !!parseOptions.dateRange,
+        dateRange: parseOptions.dateRange,
+        hasCategoryFilters: !!(parseOptions.categoryFilters && parseOptions.categoryFilters.length > 0),
+        categoryFilters: parseOptions.categoryFilters
+      });
+
+      // Specifically log forceReprocessing
+      if (parseOptions.forceReprocessing) {
+        logger.info('🚀🚀🚀 FORCE REPROCESSING IS ENABLED IN BACKEND! 🚀🚀🚀');
+      } else {
+        logger.warn('❌❌❌ FORCE REPROCESSING IS DISABLED OR MISSING! ❌❌❌');
+      }
 
       // Generate session ID early so we can track progress
       const sessionId = this.generateSessionId();

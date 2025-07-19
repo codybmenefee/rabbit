@@ -394,7 +394,7 @@ export default function TakeoutGuide({ onContinue, isConnected, onRetryConnectio
   ];
 
   const markStepComplete = (stepIndex: number) => {
-    setCompletedSteps(prev => new Set([...prev, stepIndex]));
+    setCompletedSteps(prev => new Set([...Array.from(prev), stepIndex]));
   };
 
   const nextStep = () => {

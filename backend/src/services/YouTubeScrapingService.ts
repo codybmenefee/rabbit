@@ -1019,13 +1019,14 @@ export class YouTubeScrapingService {
   private classifyContentType(entry: IVideoEntry): ContentType {
     const duration = entry.duration || 0;
 
-    // Check for YouTube Shorts (under 60 seconds)
-    if (duration <= 60 && duration > 0) {
+    // Check URL for shorts first - this is the most reliable indicator
+    if (entry.url.includes('/shorts/')) {
       return ContentType.SHORT;
     }
 
-    // Check URL for shorts
-    if (entry.url.includes('/shorts/')) {
+    // Check for YouTube Shorts based on duration, but be more conservative
+    // Only classify as SHORT if it's very short (30 seconds or less)
+    if (duration <= 30 && duration > 0) {
       return ContentType.SHORT;
     }
 

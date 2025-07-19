@@ -8,9 +8,11 @@ import analyticsRoutes from './routes/analyticsRoutes';
 import scrapingRoutes from './routes/scrapingRoutes';
 import { YouTubeAPIService } from './services/YouTubeAPIService';
 import { YouTubeScrapingService, ScrapingConfig } from './services/YouTubeScrapingService';
+import { YouTubeHighPerformanceScrapingService, HighPerformanceScrapingConfig } from './services/YouTubeHighPerformanceScrapingService';
 import { AnalyticsService } from './services/AnalyticsService';
 import { VideoService } from './services/VideoService';
 import { ParserService } from './services/ParserService';
+import { createHighPerformanceScrapingRoutes } from './routes/highPerformanceScrapingRoutes';
 
 // Load environment variables
 dotenv.config();
@@ -102,6 +104,7 @@ app.get('/', (req, res) => {
 // Initialize services
 let youtubeAPIService: YouTubeAPIService | null = null;
 let youtubeScrapingService: YouTubeScrapingService | null = null;
+let youtubeHighPerformanceScrapingService: YouTubeHighPerformanceScrapingService | null = null;
 let analyticsService: AnalyticsService;
 let videoService: VideoService;
 let parserService: ParserService;
@@ -147,9 +150,43 @@ if (scrapingEnabled) {
   logger.warn('YouTube Scraping service disabled - only API enrichment available');
 }
 
+// Initialize High-Performance YouTube Scraping service if enabled
+const hpScrapingEnabled = process.env.HP_SCRAPING_ENABLED?.toLowerCase() === 'true';
+if (hpScrapingEnabled) {
+  const hpScrapingConfig: HighPerformanceScrapingConfig = {
+    maxConcurrentRequests: parseInt(process.env.HP_SCRAPING_MAX_CONCURRENT_REQUESTS || '500'),
+    requestDelayMs: parseInt(process.env.HP_SCRAPING_REQUEST_DELAY_MS || '100'),
+    retryAttempts: parseInt(process.env.HP_SCRAPING_RETRY_ATTEMPTS || '2'),
+    timeout: parseInt(process.env.HP_SCRAPING_TIMEOUT_MS || '15000'),
+    userAgents: [], // Will use default user agents
+    enableWorkerThreads: process.env.HP_SCRAPING_ENABLE_WORKER_THREADS?.toLowerCase() === 'true',
+    workerThreadCount: parseInt(process.env.HP_SCRAPING_WORKER_THREAD_COUNT || '16'),
+    connectionPoolSize: parseInt(process.env.HP_SCRAPING_CONNECTION_POOL_SIZE || '50'),
+    batchSize: parseInt(process.env.HP_SCRAPING_BATCH_SIZE || '100'),
+    enableDeduplication: process.env.HP_SCRAPING_ENABLE_DEDUPLICATION?.toLowerCase() === 'true',
+    cacheEnabled: process.env.HP_SCRAPING_CACHE_ENABLED?.toLowerCase() !== 'false',
+    cacheTTL: parseInt(process.env.HP_SCRAPING_CACHE_TTL || '3600'),
+    enableFastParsing: process.env.HP_SCRAPING_ENABLE_FAST_PARSING?.toLowerCase() === 'true',
+    maxMemoryUsage: parseInt(process.env.HP_SCRAPING_MAX_MEMORY_USAGE || '2048')
+  };
+
+  youtubeHighPerformanceScrapingService = new YouTubeHighPerformanceScrapingService(hpScrapingConfig);
+  logger.info('YouTube High-Performance Scraping service initialized', {
+    maxConcurrentRequests: hpScrapingConfig.maxConcurrentRequests,
+    enableWorkerThreads: hpScrapingConfig.enableWorkerThreads,
+    workerThreadCount: hpScrapingConfig.workerThreadCount,
+    connectionPoolSize: hpScrapingConfig.connectionPoolSize,
+    batchSize: hpScrapingConfig.batchSize,
+    enableDeduplication: hpScrapingConfig.enableDeduplication,
+    enableFastParsing: hpScrapingConfig.enableFastParsing
+  });
+} else {
+  logger.warn('YouTube High-Performance Scraping service disabled');
+}
+
 // Ensure at least one enrichment service is available
-if (!youtubeAPIService && !youtubeScrapingService) {
-  logger.error('No enrichment services available! Please configure either YouTube API or enable scraping.');
+if (!youtubeAPIService && !youtubeScrapingService && !youtubeHighPerformanceScrapingService) {
+  logger.error('No enrichment services available! Please configure YouTube API or enable scraping.');
 }
 
 // Initialize analytics, video, and parser services
@@ -159,13 +196,15 @@ parserService = new ParserService(
   youtubeAPIService!, 
   analyticsService, 
   videoService, 
-  youtubeScrapingService || undefined
+  youtubeScrapingService || undefined,
+  youtubeHighPerformanceScrapingService || undefined
 );
 
 // Make services available to routes
 app.locals.services = {
   youtubeAPI: youtubeAPIService,
   youtubeScraping: youtubeScrapingService,
+  youtubeHighPerformanceScraping: youtubeHighPerformanceScrapingService,
   analytics: analyticsService,
   video: videoService,
   parser: parserService
@@ -174,6 +213,11 @@ app.locals.services = {
 // API routes
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/scraping', scrapingRoutes);
+
+// High-performance scraping routes (if service is available)
+if (youtubeHighPerformanceScrapingService) {
+  app.use('/api/hp-scraping', createHighPerformanceScrapingRoutes(youtubeHighPerformanceScrapingService));
+}
 
 // 404 handler
 app.use('*', (req, res) => {
@@ -231,6 +275,12 @@ async function startServer() {
         logger.info('✅ YouTube Scraping service enabled');
       } else {
         logger.info('⚠️  YouTube Scraping service disabled');
+      }
+      
+      if (youtubeHighPerformanceScrapingService) {
+        logger.info('✅ YouTube High-Performance Scraping service enabled');
+      } else {
+        logger.info('⚠️  YouTube High-Performance Scraping service disabled');
       }
       
       // Default enrichment service
