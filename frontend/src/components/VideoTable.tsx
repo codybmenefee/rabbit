@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { format } from 'date-fns';
+import logger from '@/utils/logger';
 
 interface VideoEntry {
   title: string;
@@ -73,7 +74,10 @@ export default function VideoTable({ apiBaseUrl }: VideoTableProps) {
       setEntries(data.entries);
     } catch (err) {
       setError('Error loading video entries. Please try again.');
-      console.error(err);
+      logger.error('Error loading video entries', err as Error, {
+        category: 'data_loading_error',
+        endpoint: '/api/analytics/entries'
+      });
     } finally {
       setLoading(false);
     }

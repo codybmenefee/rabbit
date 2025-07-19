@@ -1,8 +1,11 @@
 # 🐛 Debug Logging System for Rabbit Analytics
 
+> **📖 For the complete logging framework documentation, see [LOGGING.md](./LOGGING.md)**  
+> **🔧 For quick debugging help, see [debugging-checklist.md](./debugging-checklist.md)**
+
 ## Overview
 
-I've implemented a comprehensive debug logging system to help track video processing and identify bottlenecks during YouTube watch history analysis. The system provides detailed insights into every stage of the processing pipeline.
+This document covers the enhanced debug logging system specifically for video processing workflows. The system provides detailed insights into every stage of the processing pipeline with correlation tracking and performance monitoring.
 
 ## 🚀 Features Added
 

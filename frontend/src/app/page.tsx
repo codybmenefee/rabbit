@@ -21,6 +21,7 @@ import axios from 'axios';
 import TakeoutGuide from '../components/TakeoutGuide';
 import ProcessingStatus from '../components/ProcessingStatus';
 import DashboardLayout from '../components/DashboardLayout';
+import logger from '@/utils/logger';
 
 // API Configuration
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
@@ -77,7 +78,10 @@ export default function HomePage() {
     } catch (error) {
       setIsConnected(false);
       toast.error('Failed to connect to backend. Please ensure the server is running.');
-      console.error('Connection error:', error);
+      logger.error('Failed to connect to backend', error as Error, {
+        category: 'connection_error',
+        endpoint: `${API_BASE_URL}/api/health`
+      });
     }
   };
 
@@ -154,7 +158,10 @@ export default function HomePage() {
                   }, 1500);
                 }
               } catch (resultError) {
-                console.error('Error fetching results:', resultError);
+                logger.error('Error fetching results', resultError as Error, {
+                  category: 'processing_error',
+                  endpoint: '/api/analytics/results'
+                });
                 toast.error('Processing completed but failed to load results');
                 setStep('upload');
               }
@@ -163,7 +170,10 @@ export default function HomePage() {
           }
         }
       } catch (error) {
-        console.error('Error polling progress:', error);
+        logger.error('Error polling progress', error as Error, {
+          category: 'polling_error',
+          endpoint: '/api/analytics/progress'
+        });
         // Don't clear interval on error - keep trying
       }
       
@@ -239,7 +249,10 @@ export default function HomePage() {
       }
 
     } catch (error: any) {
-      console.error('Processing error:', error);
+      logger.error('Processing error', error, {
+        category: 'upload_error',
+        endpoint: '/api/analytics/process'
+      });
       
       // Check if this is because of async processing (session ID returned)
       if (error.response?.data?.sessionId) {
