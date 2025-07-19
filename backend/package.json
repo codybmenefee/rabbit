@@ -10,8 +10,8 @@
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
-    "test:unit": "jest tests/backend/unit",
-    "test:integration": "jest tests/backend/integration",
+    "test:unit": "jest ../tests/backend/unit",
+    "test:integration": "jest ../tests/backend/integration",
     "test:ci": "jest --ci --coverage --watchAll=false",
     "lint": "eslint src/**/*.ts",
     "lint:fix": "eslint src/**/*.ts --fix"
@@ -73,7 +73,7 @@
     "preset": "ts-jest",
     "testEnvironment": "node",
     "testMatch": [
-      "**/tests/backend/**/*.test.ts"
+      "<rootDir>/../tests/backend/**/*.test.ts"
     ],
     "transform": {
       "^.+\\.tsx?$": "ts-jest"
@@ -94,6 +94,9 @@
     },
     "setupFilesAfterEnv": [
       "<rootDir>/../tests/backend/helpers/setup.ts"
-    ]
+    ],
+    "moduleNameMapper": {
+      "^@/(.*)$": "<rootDir>/src/$1"
+    }
   }
 }

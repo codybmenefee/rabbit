@@ -1,5 +1,3 @@
-import { jest } from '@jest/globals';
-
 // Mock environment variables for tests
 process.env.NODE_ENV = 'test';
 process.env.MONGODB_URI = 'mongodb://localhost:27017/rabbit-test';
@@ -29,19 +27,29 @@ afterEach(() => {
   jest.restoreAllMocks();
 });
 
+// Import types for proper typing
+import { IVideoEntry, ContentType, VideoCategory } from '../../../backend/src/models/VideoEntry';
+
 // Export common test utilities
-export const mockVideoEntry = {
+export const mockVideoEntry: IVideoEntry = {
   title: 'Test Video Title',
-  url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+  channel: 'Test Channel',
+  channelId: 'UC_test_channel_id',
+  videoId: 'dQw4w9WgXcQ',
   watchedAt: new Date('2023-10-25T15:45:30.000Z'),
-  contentType: 'Video' as const,
-  category: 'Entertainment' as const,
-  channelName: 'Test Channel',
-  duration: 240,
-  views: 1000000,
-  likes: 50000,
+  url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+  contentType: ContentType.VIDEO,
+  category: VideoCategory.ENTERTAINMENT,
   description: 'Test video description',
-  uploadDate: new Date('2023-01-01T00:00:00.000Z'),
+  duration: 240,
+  viewCount: 1000000,
+  likeCount: 50000,
+  commentCount: 1000,
+  publishedAt: new Date('2023-01-01T00:00:00.000Z'),
+  thumbnailUrl: 'https://img.youtube.com/vi/dQw4w9WgXcQ/maxresdefault.jpg',
+  tags: ['test', 'video'],
+  enrichedWithAPI: true,
+  lastUpdated: new Date('2023-10-25T15:45:30.000Z'),
 };
 
 export const mockAnalyticsData = {

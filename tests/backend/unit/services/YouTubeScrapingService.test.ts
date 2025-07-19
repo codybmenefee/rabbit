@@ -135,10 +135,13 @@ describe('YouTubeScrapingService', () => {
       const entries: IVideoEntry[] = [
         {
           title: 'Test Video',
+          channel: 'Test Channel',
           url: 'https://invalid-url.com',
           watchedAt: new Date(),
-          contentType: ContentType.Video,
-          category: VideoCategory.Unknown
+          contentType: ContentType.VIDEO,
+          category: VideoCategory.UNKNOWN,
+          enrichedWithAPI: false,
+          lastUpdated: new Date()
         }
       ];
       
@@ -151,10 +154,13 @@ describe('YouTubeScrapingService', () => {
       const entries: IVideoEntry[] = [
         {
           title: 'Test Video',
+          channel: 'Test Channel',
           url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
           watchedAt: new Date(),
-          contentType: ContentType.Video,
-          category: VideoCategory.Unknown
+          contentType: ContentType.VIDEO,
+          category: VideoCategory.UNKNOWN,
+          enrichedWithAPI: false,
+          lastUpdated: new Date()
         }
       ];
       
@@ -168,13 +174,13 @@ describe('YouTubeScrapingService', () => {
           duration: 240,
           uploadDate: new Date(),
           channelName: 'Test Channel',
-          category: VideoCategory.Music
+          category: VideoCategory.MUSIC
         });
 
       const result = await scrapingService.enrichVideoEntries(entries);
       expect(result).toHaveLength(1);
       expect(result[0].title).toBe('Enriched Title');
-      expect(result[0].category).toBe(VideoCategory.Music);
+      expect(result[0].category).toBe(VideoCategory.MUSIC);
       
       mockScrapeVideoData.mockRestore();
     });
@@ -188,10 +194,13 @@ describe('YouTubeScrapingService', () => {
       const entries: IVideoEntry[] = [
         {
           title: 'Test Video',
+          channel: 'Test Channel',
           url: 'https://www.youtube.com/watch?v=test-video-id',
           watchedAt: new Date(),
-          contentType: ContentType.Video,
-          category: VideoCategory.Unknown
+          contentType: ContentType.VIDEO,
+          category: VideoCategory.UNKNOWN,
+          enrichedWithAPI: false,
+          lastUpdated: new Date()
         }
       ];
 
@@ -209,10 +218,13 @@ describe('YouTubeScrapingService', () => {
       const entries: IVideoEntry[] = [
         {
           title: 'Test Video',
+          channel: 'Test Channel',
           url: 'https://www.youtube.com/watch?v=test-video-id',
           watchedAt: new Date(),
-          contentType: ContentType.Video,
-          category: VideoCategory.Unknown
+          contentType: ContentType.VIDEO,
+          category: VideoCategory.UNKNOWN,
+          enrichedWithAPI: false,
+          lastUpdated: new Date()
         }
       ];
 
@@ -237,7 +249,7 @@ describe('YouTubeScrapingService', () => {
         duration: 180,
         uploadDate: new Date(),
         channelName: 'Test Channel',
-        category: VideoCategory.Entertainment
+        category: VideoCategory.ENTERTAINMENT
       };
 
       const mockScrapeVideoData = jest.spyOn(scrapingService as any, 'scrapeVideoData')
