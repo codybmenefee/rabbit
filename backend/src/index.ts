@@ -9,10 +9,12 @@ import scrapingRoutes from './routes/scrapingRoutes';
 import { YouTubeAPIService } from './services/YouTubeAPIService';
 import { YouTubeScrapingService, ScrapingConfig } from './services/YouTubeScrapingService';
 import { YouTubeHighPerformanceScrapingService, HighPerformanceScrapingConfig } from './services/YouTubeHighPerformanceScrapingService';
+import { YouTubeLLMScrapingService, LLMScrapingConfig } from './services/YouTubeLLMScrapingService';
 import { AnalyticsService } from './services/AnalyticsService';
 import { VideoService } from './services/VideoService';
 import { ParserService } from './services/ParserService';
 import { createHighPerformanceScrapingRoutes } from './routes/highPerformanceScrapingRoutes';
+import { createLLMScrapingRoutes } from './routes/llmScrapingRoutes';
 
 // Load environment variables
 dotenv.config();
@@ -108,6 +110,7 @@ app.get('/', (req, res) => {
 let youtubeAPIService: YouTubeAPIService | null = null;
 let youtubeScrapingService: YouTubeScrapingService | null = null;
 let youtubeHighPerformanceScrapingService: YouTubeHighPerformanceScrapingService | null = null;
+let youtubeLLMScrapingService: YouTubeLLMScrapingService | null = null;
 let analyticsService: AnalyticsService;
 let videoService: VideoService;
 let parserService: ParserService;
@@ -187,9 +190,49 @@ if (hpScrapingEnabled) {
   logger.warn('YouTube High-Performance Scraping service disabled');
 }
 
+// Initialize LLM Scraping service if enabled
+const llmScrapingEnabled = process.env.LLM_SCRAPING_ENABLED?.toLowerCase() === 'true';
+if (llmScrapingEnabled && (process.env.ANTHROPIC_API_KEY || process.env.OPENAI_API_KEY)) {
+  const llmProvider = process.env.LLM_PROVIDER as 'anthropic' | 'openai' || 'anthropic';
+  const llmScrapingConfig: LLMScrapingConfig = {
+    provider: llmProvider,
+    model: process.env.LLM_MODEL || (llmProvider === 'anthropic' ? 'claude-3-haiku-20240307' : 'gpt-3.5-turbo'),
+    maxTokens: parseInt(process.env.LLM_MAX_TOKENS || '2000'),
+    temperature: parseFloat(process.env.LLM_TEMPERATURE || '0.1'),
+    maxConcurrentRequests: parseInt(process.env.LLM_MAX_CONCURRENT_REQUESTS || '5'),
+    requestDelayMs: parseInt(process.env.LLM_REQUEST_DELAY_MS || '1000'),
+    retryAttempts: parseInt(process.env.LLM_RETRY_ATTEMPTS || '2'),
+    timeout: parseInt(process.env.LLM_TIMEOUT_MS || '30000'),
+    userAgents: [], // Will use default user agents
+    connectionPoolSize: parseInt(process.env.LLM_CONNECTION_POOL_SIZE || '20'),
+    batchSize: parseInt(process.env.LLM_BATCH_SIZE || '10'),
+    enableCaching: process.env.LLM_CACHE_ENABLED?.toLowerCase() !== 'false',
+    cacheTTL: parseInt(process.env.LLM_CACHE_TTL || '7200'),
+    costLimit: parseFloat(process.env.LLM_COST_LIMIT || '10.0'),
+    htmlChunkSize: parseInt(process.env.LLM_HTML_CHUNK_SIZE || '50000'),
+    enableFallback: process.env.LLM_ENABLE_FALLBACK?.toLowerCase() !== 'false'
+  };
+
+  youtubeLLMScrapingService = new YouTubeLLMScrapingService(llmScrapingConfig);
+  logger.info('YouTube LLM Scraping service initialized', {
+    provider: llmProvider,
+    model: llmScrapingConfig.model,
+    maxConcurrentRequests: llmScrapingConfig.maxConcurrentRequests,
+    batchSize: llmScrapingConfig.batchSize,
+    costLimit: llmScrapingConfig.costLimit,
+    enableCaching: llmScrapingConfig.enableCaching
+  });
+} else {
+  if (llmScrapingEnabled) {
+    logger.warn('LLM Scraping service enabled but no API keys provided (ANTHROPIC_API_KEY or OPENAI_API_KEY)');
+  } else {
+    logger.warn('YouTube LLM Scraping service disabled');
+  }
+}
+
 // Ensure at least one enrichment service is available
-if (!youtubeAPIService && !youtubeScrapingService && !youtubeHighPerformanceScrapingService) {
-  logger.error('No enrichment services available! Please configure YouTube API or enable scraping.');
+if (!youtubeAPIService && !youtubeScrapingService && !youtubeHighPerformanceScrapingService && !youtubeLLMScrapingService) {
+  logger.error('No enrichment services available! Please configure YouTube API, enable scraping, or provide LLM API keys.');
 }
 
 // Initialize analytics, video, and parser services
@@ -200,7 +243,8 @@ parserService = new ParserService(
   analyticsService, 
   videoService, 
   youtubeScrapingService || undefined,
-  youtubeHighPerformanceScrapingService || undefined
+  youtubeHighPerformanceScrapingService || undefined,
+  youtubeLLMScrapingService || undefined
 );
 
 // Make services available to routes
@@ -208,6 +252,7 @@ app.locals.services = {
   youtubeAPI: youtubeAPIService,
   youtubeScraping: youtubeScrapingService,
   youtubeHighPerformanceScraping: youtubeHighPerformanceScrapingService,
+  youtubeLLMScraping: youtubeLLMScrapingService,
   analytics: analyticsService,
   video: videoService,
   parser: parserService
@@ -220,6 +265,11 @@ app.use('/api/scraping', scrapingRoutes);
 // High-performance scraping routes (if service is available)
 if (youtubeHighPerformanceScrapingService) {
   app.use('/api/hp-scraping', createHighPerformanceScrapingRoutes(youtubeHighPerformanceScrapingService));
+}
+
+// LLM scraping routes (if service is available)
+if (youtubeLLMScrapingService) {
+  app.use('/api/llm-scraping', createLLMScrapingRoutes(youtubeLLMScrapingService));
 }
 
 // 404 handler
@@ -286,6 +336,12 @@ async function startServer() {
         logger.info('⚠️  YouTube High-Performance Scraping service disabled');
       }
       
+      if (youtubeLLMScrapingService) {
+        logger.info('✅ YouTube LLM Scraping service enabled');
+      } else {
+        logger.info('⚠️  YouTube LLM Scraping service disabled');
+      }
+      
       // Default enrichment service
       const defaultService = process.env.DEFAULT_ENRICHMENT_SERVICE || 'auto';
       logger.info(`🔧 Default enrichment service: ${defaultService}`);
@@ -299,10 +355,16 @@ async function startServer() {
         logger.info('HTTP server closed');
         
         try {
+          // Cleanup LLM service if available
+          if (youtubeLLMScrapingService) {
+            await youtubeLLMScrapingService.cleanup();
+            logger.info('LLM Scraping service cleaned up');
+          }
+          
           await database.disconnect();
           logger.info('Database connection closed');
         } catch (error) {
-          logger.error('Error closing database connection:', error);
+          logger.error('Error during cleanup:', error);
         }
         
         logger.info('Graceful shutdown completed');
