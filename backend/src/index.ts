@@ -2,7 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import rateLimit from 'express-rate-limit';
 import dotenv from 'dotenv';
-import { logger } from './utils/logger';
+import { logger, logRequest } from './utils/logger';
 import { database } from './utils/database';
 import analyticsRoutes from './routes/analyticsRoutes';
 import scrapingRoutes from './routes/scrapingRoutes';
@@ -29,6 +29,9 @@ const limiter = rateLimit({
 
 // Apply rate limiting to all requests
 app.use(limiter);
+
+// Request logging middleware (before other middleware)
+app.use(logRequest);
 
 // CORS configuration
 const corsOrigins = process.env.CORS_ORIGIN?.split(',') || ['http://localhost:3000', 'http://localhost:3001'];

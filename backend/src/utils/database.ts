@@ -1,5 +1,5 @@
 import mongoose from 'mongoose';
-import { logger } from './logger';
+import { logger, logDatabaseOperation } from './logger';
 
 interface DatabaseConfig {
   uri: string;
@@ -24,6 +24,8 @@ class DatabaseManager {
       logger.info('Database already connected');
       return;
     }
+
+    logDatabaseOperation('connect', 'mongodb', { uri: config.uri?.replace(/:\/\/[^@]+@/, '://***:***@') });
 
     try {
       const defaultOptions: mongoose.ConnectOptions = {
