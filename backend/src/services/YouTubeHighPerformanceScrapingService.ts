@@ -8,6 +8,7 @@ import { logger, createTimer } from '../utils/logger';
 import { Worker } from 'worker_threads';
 import { cpus } from 'os';
 import { resolve } from 'path';
+import { YouTubeLLMScrapingService, LLMScrapingConfig } from './YouTubeLLMScrapingService';
 
 export interface HighPerformanceScrapingConfig {
   maxConcurrentRequests: number;
@@ -24,6 +25,8 @@ export interface HighPerformanceScrapingConfig {
   cacheTTL: number;
   enableFastParsing: boolean;
   maxMemoryUsage: number; // MB
+  enableLLMIntegration?: boolean; // Enable LLM-enhanced scraping
+  llmConfig?: Partial<LLMScrapingConfig>; // LLM configuration override
 }
 
 export interface ScrapedVideoData {
@@ -71,6 +74,7 @@ export class YouTubeHighPerformanceScrapingService {
   private deduplicationSet: Set<string>;
   private requestQueue: Array<{videoId: string, resolve: Function, reject: Function}> = [];
   private isProcessingQueue = false;
+  private llmService: YouTubeLLMScrapingService | null = null;
 
   private readonly USER_AGENTS = [
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
@@ -86,13 +90,14 @@ export class YouTubeHighPerformanceScrapingService {
     'youtube.com'
   ];
 
-  constructor(config: HighPerformanceScrapingConfig) {
+  constructor(config: HighPerformanceScrapingConfig, llmService?: YouTubeLLMScrapingService) {
     this.config = {
       ...config,
       userAgents: config.userAgents.length > 0 ? config.userAgents : this.USER_AGENTS,
       workerThreadCount: config.workerThreadCount || cpus().length * 2,
       connectionPoolSize: config.connectionPoolSize || 50,
-      batchSize: config.batchSize || 100
+      batchSize: config.batchSize || 100,
+      enableLLMIntegration: config.enableLLMIntegration || false
     };
     
     this.cache = new NodeCache({ 
@@ -117,6 +122,36 @@ export class YouTubeHighPerformanceScrapingService {
       startTime: Date.now()
     };
 
+    // Initialize LLM service if provided or if LLM integration is enabled
+    if (llmService) {
+      this.llmService = llmService;
+      logger.info('LLM service integrated with high-performance scraping');
+    } else if (this.config.enableLLMIntegration && this.config.llmConfig) {
+      // Create LLM service with provided config
+      const llmConfig: LLMScrapingConfig = {
+        provider: 'google',
+        model: 'gemma-3-4b-it',
+        maxTokens: 2000,
+        temperature: 0.1,
+        maxConcurrentRequests: 5,
+        requestDelayMs: 1000,
+        retryAttempts: 3,
+        timeout: 30000,
+        userAgents: [],
+        connectionPoolSize: 20,
+        batchSize: 10,
+        enableCaching: true,
+        cacheTTL: 7200,
+        costLimit: 10,
+        htmlChunkSize: 50000,
+        enableFallback: true,
+        ...this.config.llmConfig
+      };
+      
+      this.llmService = new YouTubeLLMScrapingService(llmConfig);
+      logger.info('LLM service created and integrated with high-performance scraping');
+    }
+
     this.initializeConnectionPools();
     
     if (this.config.enableWorkerThreads) {
@@ -129,7 +164,9 @@ export class YouTubeHighPerformanceScrapingService {
       connectionPoolSize: this.config.connectionPoolSize,
       batchSize: this.config.batchSize,
       enableWorkerThreads: this.config.enableWorkerThreads,
-      enableDeduplication: this.config.enableDeduplication
+      enableDeduplication: this.config.enableDeduplication,
+      enableLLMIntegration: this.config.enableLLMIntegration,
+      llmServiceAvailable: !!this.llmService
     });
   }
 
@@ -621,20 +658,80 @@ export class YouTubeHighPerformanceScrapingService {
       totalEntries: entries.length,
       uniqueVideoIds: new Set(videoIds).size,
       maxConcurrency: this.config.maxConcurrentRequests,
-      batchSize: this.config.batchSize
+      batchSize: this.config.batchSize,
+      llmIntegrationEnabled: !!this.llmService
     });
 
-    // Batch scrape all videos with deduplication disabled for enrichment
-    timer.stage('Batch Scraping');
-    const scrapingResults = await this.scrapeBatch(videoIds, {
-      enableDeduplication: false, // Disable deduplication for enrichment
-      enableFastParsing: this.config.enableFastParsing,
-      maxConcurrency: this.config.maxConcurrentRequests
-    });
+    let scrapingResults: BatchScrapingResult[] = [];
+    let llmResults: any[] = [];
+
+    // Use LLM scraping if available, otherwise fall back to traditional scraping
+    if (this.llmService) {
+      timer.stage('LLM-Enhanced Batch Scraping');
+      logger.info('Using LLM-enhanced scraping for better data extraction');
+      
+      try {
+        // Use LLM service to scrape videos
+        const llmScrapingResults = await this.llmService.scrapeVideos(videoIds);
+        
+        // Convert LLM results to our format
+        scrapingResults = llmScrapingResults.map(result => ({
+          videoId: result.videoId,
+          success: result.success,
+          data: result.success && result.data ? {
+            title: result.data.title,
+            description: result.data.description,
+            channelName: result.data.channelName,
+            channelId: result.data.channelId,
+            duration: result.data.duration,
+            viewCount: result.data.viewCount,
+            likeCount: result.data.likeCount,
+            commentCount: result.data.commentCount,
+            publishedAt: result.data.publishedAt,
+            tags: result.data.tags,
+            thumbnailUrl: result.data.thumbnailUrl,
+            category: result.data.category
+          } : undefined,
+          error: result.error,
+          duration: 0 // LLM doesn't provide duration timing
+        }));
+        
+        llmResults = llmScrapingResults;
+        
+        logger.info('LLM-enhanced scraping completed', {
+          totalVideos: videoIds.length,
+          successfulVideos: llmScrapingResults.filter(r => r.success).length,
+          failedVideos: llmScrapingResults.filter(r => !r.success).length,
+          successRate: ((llmScrapingResults.filter(r => r.success).length / videoIds.length) * 100).toFixed(1) + '%'
+        });
+        
+      } catch (error) {
+        logger.warn('LLM scraping failed, falling back to traditional scraping', {
+          error: error instanceof Error ? error.message : 'Unknown error'
+        });
+        
+        // Fall back to traditional scraping
+        timer.stage('Fallback Traditional Scraping');
+        scrapingResults = await this.scrapeBatch(videoIds, {
+          enableDeduplication: false,
+          enableFastParsing: this.config.enableFastParsing,
+          maxConcurrency: this.config.maxConcurrentRequests
+        });
+      }
+    } else {
+      // Use traditional scraping
+      timer.stage('Traditional Batch Scraping');
+      scrapingResults = await this.scrapeBatch(videoIds, {
+        enableDeduplication: false,
+        enableFastParsing: this.config.enableFastParsing,
+        maxConcurrency: this.config.maxConcurrentRequests
+      });
+    }
     
     // Apply results to entries
     timer.stage('Applying Results');
     let totalEnriched = 0;
+    let llmEnriched = 0;
     
     for (const result of scrapingResults) {
       if (result.success && result.data) {
@@ -643,16 +740,32 @@ export class YouTubeHighPerformanceScrapingService {
         for (const entry of matchingEntries) {
           this.applyScrapedDataToEntry(entry, result.data);
           totalEnriched++;
+          
+          // Track LLM enrichment
+          if (this.llmService && llmResults.find(r => r.videoId === result.videoId && r.success)) {
+            llmEnriched++;
+            entry.llmEnriched = true;
+            entry.llmProvider = 'google';
+            
+            // Add LLM cost if available
+            const llmResult = llmResults.find(r => r.videoId === result.videoId);
+            if (llmResult) {
+              entry.llmCost = llmResult.cost;
+              entry.llmTokensUsed = llmResult.tokensUsed;
+            }
+          }
         }
       }
     }
 
     const enrichmentRate = ((totalEnriched / entries.length) * 100).toFixed(1);
+    const llmEnrichmentRate = this.llmService ? ((llmEnriched / entries.length) * 100).toFixed(1) : '0';
     
     timer.end({
       totalEntries: entries.length,
       enrichedEntries: totalEnriched,
       enrichmentRate: enrichmentRate + '%',
+      llmEnrichmentRate: llmEnrichmentRate + '%',
       requestsPerSecond: this.metrics.requestsPerSecond.toFixed(2),
       cacheHitRate: this.metrics.cacheHitRate.toFixed(1) + '%'
     });
@@ -661,8 +774,11 @@ export class YouTubeHighPerformanceScrapingService {
       totalEntries: entries.length,
       enrichedEntries: totalEnriched,
       enrichmentRate: enrichmentRate + '%',
+      llmEnriched: llmEnriched,
+      llmEnrichmentRate: llmEnrichmentRate + '%',
       avgResponseTime: this.metrics.averageResponseTime.toFixed(0) + 'ms',
-      throughput: this.metrics.requestsPerSecond.toFixed(2) + ' req/sec'
+      throughput: this.metrics.requestsPerSecond.toFixed(2) + ' req/sec',
+      llmIntegrationUsed: !!this.llmService
     });
 
     return enrichedEntries;
@@ -683,6 +799,11 @@ export class YouTubeHighPerformanceScrapingService {
     if (data.publishedAt) entry.publishedAt = data.publishedAt;
     if (data.tags) entry.tags = data.tags;
     if (data.thumbnailUrl) entry.thumbnailUrl = data.thumbnailUrl;
+    
+    // Apply category from LLM data (this was missing!)
+    if (data.category) {
+      entry.category = data.category as VideoCategory;
+    }
     
     // Content type classification - prioritize URL pattern and be more conservative with duration
     if (entry.url.includes('/shorts/')) {
@@ -750,6 +871,12 @@ export class YouTubeHighPerformanceScrapingService {
     for (const [host, pool] of this.connectionPools) {
       await pool.close();
       logger.debug(`Connection pool closed for ${host}`);
+    }
+    
+    // Cleanup LLM service if it was created by this service
+    if (this.llmService && this.config.enableLLMIntegration) {
+      await this.llmService.cleanup();
+      logger.info('LLM service cleaned up');
     }
     
     // Clear caches

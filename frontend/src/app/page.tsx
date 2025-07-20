@@ -26,12 +26,13 @@ import logger from '@/utils/logger';
 // API Configuration
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
 
-type EnrichmentService = 'api' | 'scraping' | 'high-performance';
+type EnrichmentService = 'api' | 'scraping' | 'high-performance' | 'llm';
 
 interface ProcessingOptions {
   enrichWithAPI: boolean;
   useScrapingService: boolean;
   useHighPerformanceService: boolean;
+  useLLMService: boolean;
   selectedService: EnrichmentService;
   forceReprocessing: boolean;
   includeAds: boolean;

@@ -75,5 +75,9 @@
     "nodejs"
   ],
   "author": "Rabbit Analytics Team",
-  "license": "MIT"
+  "license": "MIT",
+  "dependencies": {
+    "axios": "^1.10.0",
+    "node-fetch": "^3.3.2"
+  }
 }

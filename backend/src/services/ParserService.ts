@@ -4,6 +4,7 @@ import { VideoMetrics } from '../models/Metrics';
 import { YouTubeAPIService } from './YouTubeAPIService';
 import { YouTubeScrapingService } from './YouTubeScrapingService';
 import { YouTubeHighPerformanceScrapingService } from './YouTubeHighPerformanceScrapingService';
+import { YouTubeLLMScrapingService } from './YouTubeLLMScrapingService';
 import { AnalyticsService } from './AnalyticsService';
 import { VideoService } from './VideoService';
 import { logger, createTimer, debugVideoProcessing } from '../utils/logger';
@@ -12,6 +13,9 @@ export interface ParseOptions {
   enrichWithAPI: boolean;
   useScrapingService: boolean; // New option to choose between API and scraping
   useHighPerformanceService?: boolean; // New option for high-performance scraping
+  useLLMService?: boolean; // New option for LLM-enhanced scraping
+  llmProvider?: 'anthropic' | 'openai'; // LLM provider selection
+  llmCostLimit?: number; // Cost limit for LLM processing
   forceReprocessing?: boolean; // New option to skip duplicate checking and reprocess all videos
   includeAds: boolean;
   includeShorts: boolean;
@@ -55,6 +59,7 @@ export class ParserService {
   private youtubeAPI: YouTubeAPIService;
   private youtubeScraping: YouTubeScrapingService | null;
   private youtubeHighPerformanceScraping: YouTubeHighPerformanceScrapingService | null;
+  private youtubeLLMScraping: YouTubeLLMScrapingService | null;
   private analyticsService: AnalyticsService;
   private videoService: VideoService;
   
@@ -66,11 +71,13 @@ export class ParserService {
     analyticsService: AnalyticsService, 
     videoService: VideoService,
     youtubeScraping?: YouTubeScrapingService,
-    youtubeHighPerformanceScraping?: YouTubeHighPerformanceScrapingService
+    youtubeHighPerformanceScraping?: YouTubeHighPerformanceScrapingService,
+    youtubeLLMScraping?: YouTubeLLMScrapingService
   ) {
     this.youtubeAPI = youtubeAPI;
     this.youtubeScraping = youtubeScraping || null;
     this.youtubeHighPerformanceScraping = youtubeHighPerformanceScraping || null;
+    this.youtubeLLMScraping = youtubeLLMScraping || null;
     this.analyticsService = analyticsService;
     this.videoService = videoService;
   }
@@ -267,17 +274,23 @@ export class ParserService {
         enrichWithAPI: options.enrichWithAPI 
       });
       
-      // Enrich with YouTube API, Scraping Service, or High-Performance Scraping Service if requested
+      // Enrich with YouTube API, Scraping Service, High-Performance Scraping Service, or LLM Service if requested
       let enrichedEntries = preFilteredEntries;
       if (options.enrichWithAPI) {
-        // Service selection priority: High-Performance > Scraping > API
+        // Service selection priority: LLM > High-Performance > Scraping > API
+        const useLLMService = options.useLLMService || false;
         const useHighPerformanceService = options.useHighPerformanceService || false;
         const useScrapingService = options.useScrapingService || false;
         
         let serviceName: string;
         let service: any;
+        let isLLMService = false;
         
-        if (useHighPerformanceService && this.youtubeHighPerformanceScraping) {
+        if (useLLMService && this.youtubeLLMScraping) {
+          serviceName = 'LLM Scraping';
+          service = this.youtubeLLMScraping;
+          isLLMService = true;
+        } else if (useHighPerformanceService && this.youtubeHighPerformanceScraping) {
           serviceName = 'High-Performance Scraping';
           service = this.youtubeHighPerformanceScraping;
         } else if (useScrapingService && this.youtubeScraping) {
@@ -304,7 +317,40 @@ export class ParserService {
               serviceType: serviceName
             });
             
-            enrichedEntries = await service.enrichVideoEntries(preFilteredEntries);
+            if (isLLMService) {
+              // Handle LLM service differently - it works with video IDs
+              const videoIds = preFilteredEntries.map(entry => entry.videoId).filter(Boolean);
+              const llmResults = await service.scrapeVideos(videoIds);
+              
+              // Convert LLM results back to enriched entries
+              enrichedEntries = preFilteredEntries.map(entry => {
+                const llmResult = llmResults.find((r: any) => r.videoId === entry.videoId && r.success);
+                if (llmResult && llmResult.data) {
+                  return {
+                    ...entry,
+                    title: llmResult.data.title || entry.title,
+                    description: llmResult.data.description || entry.description,
+                    channelName: llmResult.data.channelName || entry.channel,
+                    channelId: llmResult.data.channelId || entry.channelId,
+                    duration: llmResult.data.duration || entry.duration,
+                    viewCount: llmResult.data.viewCount || entry.viewCount,
+                    likeCount: llmResult.data.likeCount || entry.likeCount,
+                    publishedAt: llmResult.data.publishedAt || entry.publishedAt,
+                    tags: llmResult.data.tags || entry.tags,
+                    thumbnailUrl: llmResult.data.thumbnailUrl || entry.thumbnailUrl,
+                    category: llmResult.data.category as VideoCategory || entry.category,
+                    enrichedWithAPI: true,
+                    llmEnriched: true,
+                    llmProvider: options.llmProvider,
+                    llmCost: llmResult.cost
+                  };
+                }
+                return entry;
+              });
+            } else {
+              enrichedEntries = await service.enrichVideoEntries(preFilteredEntries);
+            }
+            
             const enrichedCount = enrichedEntries.filter(e => e.enrichedWithAPI).length;
             
             this.updateProgress(sessionIdToUse, 'enrichment_complete', 70, `${serviceName} enrichment complete. ${enrichedCount} videos enriched`, { 

@@ -65,6 +65,12 @@ export interface IVideoEntry {
   enrichedWithAPI: boolean;
   lastUpdated: Date;
   processingErrors?: string[];
+  
+  // LLM enrichment metadata
+  llmEnriched?: boolean;
+  llmProvider?: 'anthropic' | 'openai' | 'google';
+  llmCost?: number;
+  llmTokensUsed?: number;
 }
 
 // Document interface for Mongoose
@@ -111,7 +117,13 @@ const VideoEntrySchema = new Schema<VideoEntryDocument>({
   // Metadata
   enrichedWithAPI: { type: Boolean, default: false },
   lastUpdated: { type: Date, default: Date.now },
-  processingErrors: [String]
+  processingErrors: [String],
+  
+  // LLM enrichment metadata
+  llmEnriched: { type: Boolean, default: false },
+  llmProvider: { type: String, enum: ['anthropic', 'openai', 'google'] },
+  llmCost: Number,
+  llmTokensUsed: Number
 }, {
   timestamps: true,
   collection: 'video_entries'

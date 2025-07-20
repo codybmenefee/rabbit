@@ -7,6 +7,8 @@ A comprehensive business intelligence platform for YouTube watch history analysi
 ### Core Analytics
 - **Watch History Processing**: Upload and analyze YouTube watch history from Google Takeout
 - **YouTube API Integration**: Enrich video data with metadata, categories, and statistics
+- **LLM-Powered Scraping**: Advanced AI-powered metadata extraction using Google's Gemma 3 4B Instruct
+- **High-Performance LLM Integration**: Seamless integration of AI scraping into high-performance batch processing
 - **Advanced Metrics**: Hours watched, content categories, creator insights, temporal trends
 - **Trend Analysis**: Month-over-month and year-over-year viewing pattern analysis
 
@@ -30,8 +32,9 @@ A comprehensive business intelligence platform for YouTube watch history analysi
 - **Framework**: Express.js with comprehensive middleware
 - **Database**: MongoDB with Mongoose ODM
 - **APIs**: YouTube Data API v3 integration
-- **Processing**: Advanced HTML parsing and data enrichment
+- **Processing**: Advanced HTML parsing and data enrichment with AI-powered LLM integration
 - **Caching**: Redis for performance optimization
+- **AI Integration**: OpenRouter API with Gemma 3B 4B for intelligent data extraction
 
 ### Frontend
 - **Framework**: Next.js 14 with App Router
@@ -50,7 +53,8 @@ A comprehensive business intelligence platform for YouTube watch history analysi
 
 - Node.js 18+ and npm
 - MongoDB instance (local or cloud)
-- YouTube Data API key
+- YouTube Data API key (optional, for enrichment)
+- OpenRouter API key (optional, for LLM-powered scraping)
 - Redis instance (optional, for caching)
 
 ## 🏃‍♂️ Quick Start
@@ -66,6 +70,10 @@ cd rabbit
 # Backend environment
 cp backend/.env.example backend/.env
 # Add your YouTube API key and database URLs
+
+# For LLM-powered scraping (optional)
+cp .env.gemma-example .env
+# Add your OpenRouter API key for Gemma 3 4B Instruct
 
 # Frontend environment  
 cp frontend/.env.example frontend/.env.local
@@ -204,6 +212,9 @@ npm run test:integration
 
 # Test coverage
 npm run test:coverage
+
+# Test LLM scraping (Gemma 3 4B Instruct)
+./test-gemma-simple.sh
 ```
 
 ## 🚀 Deployment
