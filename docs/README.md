@@ -1,277 +1,165 @@
 # Rabbit YouTube Analytics Platform - Documentation
 
-## Overview
+Complete documentation for the Rabbit YouTube Analytics Platform, a comprehensive business intelligence tool for YouTube watch history analysis.
 
-Welcome to the comprehensive documentation for the Rabbit YouTube Analytics Platform. This documentation provides detailed information about the system architecture, services, development processes, and deployment strategies.
+## 📚 Documentation Structure
 
-## Documentation Structure
+### 🏗️ Architecture
+- **[System Overview](architecture/system-overview.md)** - High-level system architecture and components
+- **[API Design](architecture/api-design.md)** - RESTful API design and endpoints
+- **[Data Flow](architecture/data-flow.md)** - Data processing and enrichment pipeline
+- **[Service Dependencies](architecture/service-dependencies.md)** - Service interactions and dependencies
 
-```mermaid
-graph TB
-    subgraph "📚 Documentation Categories"
-        ARCH[🏗️ Architecture]
-        SERVICES[⚙️ Services]
-        DEV[💻 Development]
-        MODELS[📊 Models]
-        INTEGRATIONS[🔗 Integrations]
-        LLM[🤖 LLM Context]
-    end
-    
-    subgraph "🎯 User Roles"
-        DEVELOPERS[Developers]
-        ARCHITECTS[System Architects]
-        DEVOPS[DevOps Engineers]
-        ANALYSTS[Data Analysts]
-        LLMS[LLM Systems]
-    end
-    
-    DEVELOPERS --> DEV
-    DEVELOPERS --> SERVICES
-    ARCHITECTS --> ARCH
-    ARCHITECTS --> MODELS
-    DEVOPS --> DEV
-    DEVOPS --> INTEGRATIONS
-    ANALYSTS --> MODELS
-    ANALYSTS --> SERVICES
-    LLMS --> LLM
-    
-    style ARCH fill:#e3f2fd
-    style SERVICES fill:#f3e5f5
-    style DEV fill:#e8f5e8
-    style LLM fill:#fff3e0
-```
+### 🔧 Services
+- **[Analytics Service](services/analytics-service.md)** - Core analytics engine and metrics calculation
+- **[Parser Service](services/parser-service.md)** - HTML parsing and data extraction
+- **[Enrichment Services](services/enrichment-services.md)** - YouTube API and web scraping services
 
-## Quick Navigation
+### 🚀 Development
+- **[Getting Started](development/getting-started.md)** - Setup and development workflow
+- **[Developer Guide](developer-guide.md)** - Comprehensive development guide
+- **[Git Workflow](git-workflow.md)** - Git practices and contribution guidelines
 
-### 🚀 Getting Started
-- **New Developers**: Start with [Getting Started Guide](development/getting-started.md)
-- **System Overview**: Read [System Architecture Overview](architecture/system-overview.md)
-- **LLM Integration**: Begin with [Codebase Summary](llm-context/codebase-summary.md)
+### 📖 User Guides
+- **[User Guide](user-guide.md)** - End-user documentation and tutorials
+- **[Scraping Service Guide](scraping-service-guide.md)** - Web scraping configuration and usage
 
-### 📖 Documentation Categories
+### 🤖 LLM Integration
+- **[Codebase Summary](llm-context/codebase-summary.md)** - LLM-friendly codebase overview
 
-#### 🏗️ Architecture Documentation
-Comprehensive system design and architectural patterns.
+## 🌟 Key Features
 
-| Document | Description | Audience |
-|----------|-------------|----------|
-| [System Overview](architecture/system-overview.md) | High-level architecture with Mermaid diagrams | Architects, Developers |
-| [Data Flow](architecture/data-flow.md) | Data processing pipelines and transformations | Architects, Developers |
-| [Service Dependencies](architecture/service-dependencies.md) | Service interaction patterns and dependencies | Developers, DevOps |
-| [API Design](architecture/api-design.md) | REST API design principles and documentation | Frontend Developers, API Users |
+### Core Analytics
+- **Watch History Processing**: Upload and analyze YouTube watch history from Google Takeout
+- **YouTube API Integration**: Enrich video data with metadata, categories, and statistics  
+- **LLM-Powered Scraping**: AI-powered metadata extraction using Google's Gemma 3 4B Instruct
+- **High-Performance Processing**: Seamless integration of AI scraping into batch processing
+- **Advanced Metrics**: Hours watched, content categories, creator insights, temporal trends
+- **Trend Analysis**: Month-over-month and year-over-year viewing pattern analysis
 
-#### ⚙️ Service Documentation
-Detailed documentation for each service component.
+### AI Integration
+- **OpenRouter Integration**: Unified access to multiple AI models (Anthropic, OpenAI, Meta, Google, Mistral)
+- **Cost-Effective LLM Usage**: Optimized for large datasets with intelligent chunking and caching
+- **Fallback Mechanisms**: Automatic fallback between API, scraping, and LLM methods
+- **Real-time Cost Monitoring**: Built-in cost limits and usage tracking
 
-| Document | Description | Audience |
-|----------|-------------|----------|
-| [Analytics Service](services/analytics-service.md) | Metrics generation algorithms and calculations | Developers, Analysts |
-| [Parser Service](services/parser-service.md) | HTML parsing and orchestration logic | Developers |
-| [Enrichment Services](services/enrichment-services.md) | Data enrichment strategies and implementations | Developers |
-| [Video Service](services/video-service.md) | Database operations and data management | Developers |
-| [Classifier Service](services/classifier-service.md) | Content classification logic | Developers |
+### Performance Features
+- **Multi-Service Architecture**: YouTube API, web scraping, and LLM integration
+- **Intelligent Caching**: Redis-based caching for performance optimization
+- **Batch Processing**: Efficient processing of large datasets
+- **Rate Limiting**: Respect API quotas and avoid service abuse
+- **Connection Pooling**: Optimized HTTP connections for external services
 
-#### 💻 Development Guides
-Practical guides for development and contribution.
+## 🛠 Technical Stack
 
-| Document | Description | Audience |
-|----------|-------------|----------|
-| [Getting Started](development/getting-started.md) | Complete setup and development environment | New Developers |
-| [Testing Strategy](development/testing-strategy.md) | Testing approaches and best practices | Developers |
-| [Deployment Guide](development/deployment-guide.md) | Production deployment and scaling | DevOps, Developers |
-| [Performance Optimization](development/performance-optimization.md) | Performance tuning and optimization | Senior Developers |
+### Backend
+- **Runtime**: Node.js with TypeScript
+- **Framework**: Express.js with comprehensive middleware
+- **Database**: MongoDB with Mongoose ODM
+- **APIs**: YouTube Data API v3 integration
+- **AI Integration**: OpenRouter API with multiple model support
+- **Caching**: Redis for performance optimization
+- **Processing**: Advanced HTML parsing and data enrichment
 
-#### 📊 Data Models
-Data structures and schema documentation.
+### Frontend
+- **Framework**: Next.js 14 with App Router
+- **Styling**: Tailwind CSS with custom components
+- **Charts**: Recharts for interactive data visualization
+- **State Management**: React hooks with context
+- **File Handling**: Advanced drag-and-drop upload
 
-| Document | Description | Audience |
-|----------|-------------|----------|
-| [VideoEntry Schema](models/video-entry-schema.md) | Complete VideoEntry model documentation | Developers, Analysts |
-| [Metrics Schema](models/metrics-schema.md) | Analytics and metrics data structures | Developers, Analysts |
-| [API Contracts](models/api-contracts.md) | Request/response schemas and validation | API Users, Developers |
+### Infrastructure
+- **Containerization**: Docker with multi-stage builds
+- **Environment**: Development and production configurations
+- **Testing**: Jest for unit/integration testing
+- **Monitoring**: Comprehensive logging and error tracking
 
-#### 🔗 Integration Documentation
-External integrations and connection guides.
+## 📊 Development Summary
 
-| Document | Description | Audience |
-|----------|-------------|----------|
-| [YouTube API Integration](integrations/youtube-api-integration.md) | YouTube Data API usage and best practices | Developers |
-| [Database Design](integrations/database-design.md) | MongoDB schema design and indexing | Developers, DBAs |
-| [Frontend-Backend Integration](integrations/frontend-backend-integration.md) | API contracts and communication patterns | Full-stack Developers |
+### Recent Implementations
 
-#### 🤖 LLM Context
-Documentation optimized for LLM understanding and integration.
+#### LLM Integration (Latest)
+- **Google Gemma 3 4B Integration**: Ultra-cost-effective AI model for structured data extraction
+- **OpenRouter Migration**: Unified API access to multiple AI providers
+- **Cost Optimization**: Intelligent chunking, caching, and cost limits
+- **Performance Monitoring**: Real-time cost and usage tracking
 
-| Document | Description | Audience |
-|----------|-------------|----------|
-| [Codebase Summary](llm-context/codebase-summary.md) | Executive summary for LLM systems | LLM Systems, AI Tools |
-| [Key Patterns](llm-context/key-patterns.md) | Common patterns and conventions | LLM Systems, Developers |
-| [Troubleshooting Guide](llm-context/troubleshooting-guide.md) | Common issues and resolution patterns | Support, LLM Systems |
-| [Extension Points](llm-context/extension-points.md) | How to extend functionality safely | LLM Systems, Developers |
+#### Web Scraping Service
+- **Multi-Strategy Extraction**: 4 distinct methods for robust data extraction
+- **Anti-Detection Measures**: User-agent rotation, rate limiting, circuit breaker
+- **Fallback Integration**: Seamless fallback between YouTube API and scraping
+- **Performance Features**: Concurrent processing, caching, batch operations
 
-## 🎯 Role-Based Documentation Paths
+#### Analytics Engine
+- **Advanced Metrics**: Comprehensive analytics with temporal patterns
+- **MongoDB Integration**: Persistent data storage with optimized indexes
+- **Real-time Processing**: Live updates during data processing
+- **Export Capabilities**: PDF reports and raw data export
 
-### For New Developers
-```mermaid
-flowchart LR
-    A[Start Here] --> B[Getting Started Guide]
-    B --> C[System Overview]
-    C --> D[Service Documentation]
-    D --> E[Development Patterns]
-    E --> F[Testing Strategy]
-    F --> G[Ready to Contribute!]
-    
-    style A fill:#e3f2fd
-    style G fill:#e8f5e8
-```
+### Testing Framework
+- **Multi-Layer Testing**: Unit, integration, and end-to-end tests
+- **Backend Testing**: Jest + TypeScript for services and controllers
+- **Frontend Testing**: Jest + React Testing Library
+- **E2E Testing**: Playwright for user workflow testing
 
-**Recommended Reading Order:**
-1. [Getting Started Guide](development/getting-started.md) - Environment setup
-2. [System Architecture Overview](architecture/system-overview.md) - Understanding the platform
-3. [Codebase Summary](llm-context/codebase-summary.md) - High-level code overview
-4. [Analytics Service](services/analytics-service.md) - Core business logic
-5. [Testing Strategy](development/testing-strategy.md) - Quality assurance
+## 🔬 Performance Metrics
 
-### For System Architects
-```mermaid
-flowchart LR
-    A[Architecture Focus] --> B[System Overview]
-    B --> C[Data Flow]
-    C --> D[Service Dependencies]
-    D --> E[API Design]
-    E --> F[Performance Optimization]
-    
-    style A fill:#e3f2fd
-    style F fill:#e8f5e8
-```
+### Cost Analysis (LLM Services)
+- **Gemma 3 4B Instruct**: ~$0.000006 per video (ultra-low cost)
+- **Claude 3 Haiku**: ~$0.0015 per video (balanced performance)
+- **GPT-3.5 Turbo**: ~$0.003 per video (reliable performance)
+- **Llama 3.1 8B**: ~$0.0004 per video (open source)
 
-**Recommended Reading Order:**
-1. [System Architecture Overview](architecture/system-overview.md)
-2. [Data Flow](architecture/data-flow.md)
-3. [Service Dependencies](architecture/service-dependencies.md)
-4. [Performance Optimization](development/performance-optimization.md)
-5. [Database Design](integrations/database-design.md)
+### Processing Capacity
+- **Large Datasets**: Tested with 18,000+ video entries
+- **Concurrent Processing**: Up to 500 concurrent requests (high-performance mode)
+- **Caching Efficiency**: 24-hour TTL for scraping, 2-hour TTL for LLM results
+- **Fallback Reliability**: 99%+ uptime with intelligent service switching
 
-### For DevOps Engineers
-```mermaid
-flowchart LR
-    A[Deployment Focus] --> B[Getting Started]
-    B --> C[Deployment Guide]
-    C --> D[Performance Optimization]
-    D --> E[Database Design]
-    E --> F[Monitoring Setup]
-    
-    style A fill:#e3f2fd
-    style F fill:#e8f5e8
-```
+## 🚀 Quick Start
 
-**Recommended Reading Order:**
-1. [Getting Started Guide](development/getting-started.md) - Local setup
-2. [Deployment Guide](development/deployment-guide.md) - Production deployment
-3. [Performance Optimization](development/performance-optimization.md) - Scaling strategies
-4. [Database Design](integrations/database-design.md) - Data layer setup
-5. [System Architecture Overview](architecture/system-overview.md) - Infrastructure understanding
+1. **Environment Setup**:
+   ```bash
+   cp .env.example .env
+   # Configure with your API keys
+   ```
 
-### For LLM Integration
-```mermaid
-flowchart LR
-    A[LLM Integration] --> B[Codebase Summary]
-    B --> C[Key Patterns]
-    C --> D[API Contracts]
-    D --> E[Extension Points]
-    E --> F[Ready for AI!]
-    
-    style A fill:#e3f2fd
-    style F fill:#e8f5e8
-```
+2. **Install Dependencies**:
+   ```bash
+   npm install
+   cd backend && npm install
+   cd ../frontend && npm install
+   ```
 
-**Recommended Reading Order:**
-1. [Codebase Summary](llm-context/codebase-summary.md) - Complete platform overview
-2. [Key Patterns](llm-context/key-patterns.md) - Development conventions
-3. [API Contracts](models/api-contracts.md) - Interface definitions
-4. [Extension Points](llm-context/extension-points.md) - Customization opportunities
-5. [Troubleshooting Guide](llm-context/troubleshooting-guide.md) - Problem resolution
+3. **Start Services**:
+   ```bash
+   ./scripts/utilities/start-services.sh
+   ```
 
-## 🔍 Find What You Need
+4. **Run Tests**:
+   ```bash
+   node scripts/testing/test-gemma-3-4b-demo.js
+   ```
 
-### By Technology
-- **TypeScript/Node.js**: [Service Documentation](services/)
-- **React/Next.js**: [Frontend-Backend Integration](integrations/frontend-backend-integration.md)
-- **MongoDB**: [Database Design](integrations/database-design.md)
-- **YouTube API**: [YouTube API Integration](integrations/youtube-api-integration.md)
-- **Docker**: [Getting Started](development/getting-started.md) + [Deployment Guide](development/deployment-guide.md)
+## 📈 Future Roadmap
 
-### By Feature
-- **Analytics Engine**: [Analytics Service](services/analytics-service.md)
-- **Data Processing**: [Parser Service](services/parser-service.md)
-- **Data Enrichment**: [Enrichment Services](services/enrichment-services.md)
-- **Performance**: [Performance Optimization](development/performance-optimization.md)
-- **Testing**: [Testing Strategy](development/testing-strategy.md)
+### Planned Features
+- **Real-time Analytics**: Live dashboard updates
+- **Advanced Visualizations**: Interactive charts and graphs
+- **Export Enhancements**: Additional export formats
+- **Mobile Optimization**: Responsive design improvements
+- **API Expansion**: Public API for third-party integrations
 
-### By Problem
-- **Setup Issues**: [Getting Started Guide](development/getting-started.md)
-- **Performance Problems**: [Performance Optimization](development/performance-optimization.md)
-- **Integration Issues**: [Integration Documentation](integrations/)
-- **API Questions**: [API Design](architecture/api-design.md)
-- **Data Questions**: [Data Models](models/)
+### Performance Improvements
+- **Edge Caching**: CDN integration for static assets
+- **Database Optimization**: Advanced indexing and query optimization
+- **Parallel Processing**: Enhanced concurrent processing capabilities
+- **Memory Optimization**: Reduced memory footprint for large datasets
 
-## 📋 Documentation Standards
+## 🤝 Contributing
 
-### Mermaid Diagram Standards
-All diagrams follow consistent styling:
-- **Blue (#e3f2fd)**: Input/Starting points
-- **Green (#e8f5e8)**: Output/Success states
-- **Purple (#f3e5f5)**: Processing/Services
-- **Orange (#fff3e0)**: External systems
-- **Red (#ffebee)**: Errors/Failures
+See [Developer Guide](developer-guide.md) and [Git Workflow](git-workflow.md) for contribution guidelines.
 
-### Code Example Standards
-- **TypeScript**: Full type annotations
-- **Comments**: Explain business logic, not syntax
-- **Error Handling**: Show comprehensive error scenarios
-- **Performance**: Include optimization notes
+## 📞 Support
 
-### Documentation Updates
-When updating documentation:
-1. **Keep diagrams current** with code changes
-2. **Update cross-references** when adding new docs
-3. **Maintain consistency** in terminology and patterns
-4. **Test code examples** for accuracy
-5. **Update this index** when adding new documentation
-
-## 🤝 Contributing to Documentation
-
-### Documentation Types Needed
-- **API Examples**: Real-world usage examples
-- **Performance Benchmarks**: Concrete performance data
-- **Troubleshooting Scenarios**: Common problem-solution pairs
-- **Integration Tutorials**: Step-by-step integration guides
-- **Architecture Decision Records**: Design choice rationale
-
-### Style Guide
-- **Clarity**: Write for your audience's expertise level
-- **Completeness**: Include all necessary context
-- **Currency**: Keep information up-to-date
-- **Cross-references**: Link to related documentation
-- **Examples**: Provide concrete, testable examples
-
-## 📞 Support and Questions
-
-### For Developers
-- **Code Questions**: Check [Service Documentation](services/)
-- **Setup Issues**: See [Getting Started Guide](development/getting-started.md)
-- **Architecture Questions**: Review [Architecture Documentation](architecture/)
-
-### For System Integrators
-- **API Integration**: See [API Design](architecture/api-design.md)
-- **Data Integration**: Check [Integration Documentation](integrations/)
-- **Performance Requirements**: Review [Performance Optimization](development/performance-optimization.md)
-
-### For LLM Systems
-- **Code Understanding**: Start with [Codebase Summary](llm-context/codebase-summary.md)
-- **Pattern Recognition**: See [Key Patterns](llm-context/key-patterns.md)
-- **Extension Development**: Check [Extension Points](llm-context/extension-points.md)
-
----
-
-This documentation represents a comprehensive guide to understanding, developing, and deploying the Rabbit YouTube Analytics Platform. Whether you're a developer, architect, or AI system, you'll find the information needed to work effectively with this platform.
+For technical support and questions, refer to the appropriate documentation section or check the troubleshooting guides in each service documentation.

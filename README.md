@@ -8,9 +8,15 @@ A comprehensive business intelligence platform for YouTube watch history analysi
 - **Watch History Processing**: Upload and analyze YouTube watch history from Google Takeout
 - **YouTube API Integration**: Enrich video data with metadata, categories, and statistics
 - **LLM-Powered Scraping**: Advanced AI-powered metadata extraction using Google's Gemma 3 4B Instruct
-- **High-Performance LLM Integration**: Seamless integration of AI scraping into high-performance batch processing
+- **High-Performance Processing**: Seamless integration of AI scraping into batch processing
 - **Advanced Metrics**: Hours watched, content categories, creator insights, temporal trends
 - **Trend Analysis**: Month-over-month and year-over-year viewing pattern analysis
+
+### AI Integration
+- **OpenRouter Integration**: Unified access to multiple AI models (Anthropic, OpenAI, Meta, Google, Mistral)
+- **Cost-Effective LLM Usage**: Optimized for large datasets with intelligent chunking and caching
+- **Fallback Mechanisms**: Automatic fallback between API, scraping, and LLM methods
+- **Real-time Cost Monitoring**: Built-in cost limits and usage tracking
 
 ### Visualizations & Insights
 - **Interactive Dashboard**: Modern, responsive analytics dashboard
@@ -135,6 +141,38 @@ npm run build && npm start
    - Open Rabbit application
    - Use the upload interface to select your `watch-history.html` file
    - Wait for processing to complete
+
+## 📁 Project Structure
+
+```
+rabbit/
+├── backend/                    # Node.js + TypeScript API server
+│   ├── src/
+│   │   ├── controllers/       # Request handlers
+│   │   ├── services/          # Business logic
+│   │   ├── models/           # Data models and schemas
+│   │   ├── middleware/       # Express middleware
+│   │   ├── utils/            # Utility functions
+│   │   └── routes/           # API route definitions
+│   └── package.json
+├── frontend/                  # Next.js frontend application
+│   ├── src/
+│   │   ├── app/              # Next.js 14 App Router
+│   │   ├── components/       # React components
+│   │   ├── utils/            # Frontend utilities
+│   │   └── types/            # TypeScript type definitions
+│   └── package.json
+├── scripts/                  # Organized utility scripts
+│   ├── testing/             # Test scripts and LLM demos
+│   ├── debugging/           # Debug and troubleshooting tools
+│   ├── demos/              # Demo scripts and sample data
+│   └── utilities/          # Database and system utilities
+├── docs/                     # Comprehensive documentation
+├── tests/                    # Integration and E2E tests
+├── .env                      # Main environment configuration
+├── .env.example             # Environment configuration template
+└── docker-compose.yml        # Container orchestration
+```
 
 ## 🔧 API Documentation
 
