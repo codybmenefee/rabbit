@@ -1,6 +1,7 @@
 import * as cheerio from 'cheerio';
 import { request } from 'undici';
 import { Pool } from 'undici';
+import axios from 'axios';
 import NodeCache from 'node-cache';
 import { IVideoEntry, VideoCategory, ContentType } from '../models/VideoEntry';
 import { logger, createTimer } from '../utils/logger';
@@ -149,6 +150,13 @@ export class YouTubeLLMScrapingService {
 
   private initializeOpenRouterClient(): void {
     const apiKey = process.env.OPENROUTER_API_KEY;
+    
+    // Debug: Log API key status
+    logger.info('OpenRouter API key check', {
+      hasApiKey: !!apiKey,
+      keyLength: apiKey ? apiKey.length : 0,
+      keyPrefix: apiKey ? apiKey.substring(0, 10) + '...' : 'NONE'
+    });
     
     if (!apiKey || apiKey === 'test_key_openrouter') {
       logger.info('Mock OpenRouter client initialized (no API key provided)');
@@ -524,35 +532,43 @@ export class YouTubeLLMScrapingService {
       messages: [
         {
           role: 'system',
-          content: `You are a precise YouTube video metadata extractor. Extract structured data from YouTube video HTML and return ONLY valid JSON.
+          content: `You are an expert YouTube video metadata extractor. Extract ALL available metadata from YouTube video HTML pages and return ONLY valid JSON.
 
 CRITICAL REQUIREMENTS:
 1. Return ONLY raw JSON - no explanations, no markdown, no code blocks
-2. Extract EXACT video title and channel name as they appear
-3. Use null for missing values
-4. Numbers as numbers, booleans as true/false
-5. If field not found, omit from JSON
-6. Keep descriptions and tags SHORT to avoid truncation
+2. Extract EXACT values as they appear on the page
+3. Use null for missing values, never make up data
+4. Convert text numbers to actual numbers (e.g., "1.2M" → 1200000)
+5. Parse durations to seconds (e.g., "10:25" → 625)
+6. Keep all text fields concise to prevent truncation
 
-COMPACT JSON FORMAT (keep descriptions under 100 chars):
+COMPREHENSIVE JSON FORMAT:
 {
-  "title": "exact video title",
-  "channelName": "exact channel name", 
-  "channelId": "channel ID if found",
-  "duration": seconds_as_number,
-  "viewCount": views_as_number,
-  "likeCount": likes_as_number,
-  "publishedAt": "YYYY-MM-DDTHH:MM:SSZ",
-  "category": "category",
-  "isLivestream": false,
-  "isShort": false
+  "title": "exact video title from page",
+  "description": "first 200 chars of video description",
+  "channelName": "exact channel name",
+  "channelId": "UC... channel ID if found",
+  "duration": duration_in_seconds,
+  "viewCount": exact_view_count_as_number,
+  "likeCount": like_count_as_number,
+  "commentCount": comment_count_if_visible,
+  "publishedAt": "YYYY-MM-DDTHH:MM:SSZ or date string",
+  "tags": ["tag1", "tag2", "max 10 tags"],
+  "thumbnailUrl": "highest quality thumbnail URL",
+  "category": "Music|Gaming|Education|Entertainment|Sports|News|Comedy|Science|Film|People|Howto|Other",
+  "isLivestream": boolean_based_on_indicators,
+  "isShort": boolean_if_shorts_video
 }
 
-EXTRACTION PRIORITY:
-1. Video title (from <title> or h1)
-2. Channel name (from author/creator elements)
-3. Basic metrics (views, likes, duration)
-4. Skip long descriptions to prevent truncation`
+EXTRACTION TIPS:
+- Title: Usually in <title> tag or h1.title
+- Channel: Look for channel link, author meta, or ytInitialData
+- Views: Parse "X views" text, convert K/M/B suffixes
+- Duration: In meta tags or player data, convert to seconds
+- Published: Look for "X ago" or absolute dates
+- Category: From breadcrumbs or schema.org data
+- Detect Shorts by URL (/shorts/) or duration < 60s
+- Detect livestreams by "LIVE" badges or stream indicators`
         },
         {
           role: 'user',
@@ -565,19 +581,29 @@ ${this.extractRelevantContent(htmlContent, Math.min(config.htmlChunkSize, 80000)
       temperature: config.temperature
     };
 
-    const response = await request(this.OPENROUTER_API_URL + '/chat/completions', {
-      method: 'POST',
-      headers: this.openrouterClient.defaultHeaders,
-      body: JSON.stringify(requestBody)
+    // Debug logging for OpenRouter request
+    logger.debug('Making OpenRouter API request', {
+      url: this.OPENROUTER_API_URL + '/chat/completions',
+      headers: {
+        ...this.openrouterClient.defaultHeaders,
+        'Authorization': this.openrouterClient.defaultHeaders.Authorization ? 
+          `Bearer ${this.openrouterClient.defaultHeaders.Authorization.substring(7, 27)}...` : 'MISSING'
+      },
+      model: requestBody.model,
+      messagesCount: requestBody.messages.length
     });
 
-    if (response.statusCode !== 200) {
-      const errorText = await response.body.text();
-      throw new Error(`OpenRouter API error: ${response.statusCode} - ${errorText}`);
+    const response = await axios.post(this.OPENROUTER_API_URL + '/chat/completions', requestBody, {
+      headers: this.openrouterClient.defaultHeaders,
+      timeout: 30000,
+      validateStatus: (status) => status < 500 // Allow 4xx errors to be handled below
+    });
+
+    if (response.status !== 200) {
+      throw new Error(`OpenRouter API error: ${response.status} - ${JSON.stringify(response.data)}`);
     }
 
-    const data = await response.body.json();
-    return data;
+    return response.data;
   }
 
   /**
@@ -788,91 +814,159 @@ ${this.extractRelevantContent(htmlContent, Math.min(config.htmlChunkSize, 80000)
    */
   private extractRelevantContent(htmlContent: string, maxSize: number): string {
     try {
-      // Strategy 1: Extract only the essential metadata
+      // Enhanced extraction strategy for comprehensive metadata
       let relevantContent = '';
       
-      // 1. Extract and include page title (most important)
+      // 1. Extract page title - most critical
       const titleMatch = htmlContent.match(/<title[^>]*>([^<]+)<\/title>/);
       if (titleMatch) {
-        relevantContent += titleMatch[0] + '\n';
+        relevantContent += `<!-- Page Title -->\n${titleMatch[0]}\n\n`;
       }
       
-      // 2. Extract key meta tags (description, author, etc.)
+      // 2. Extract ALL relevant meta tags
       const metaPatterns = [
+        // Basic metadata
         /<meta[^>]+name="description"[^>]+content="[^"]*"[^>]*>/g,
         /<meta[^>]+name="author"[^>]+content="[^"]*"[^>]*>/g,
         /<meta[^>]+name="title"[^>]+content="[^"]*"[^>]*>/g,
+        /<meta[^>]+name="keywords"[^>]+content="[^"]*"[^>]*>/g,
+        
+        // Open Graph tags
         /<meta[^>]+property="og:title"[^>]+content="[^"]*"[^>]*>/g,
         /<meta[^>]+property="og:description"[^>]+content="[^"]*"[^>]*>/g,
-        /<meta[^>]+name="twitter:title"[^>]+content="[^"]*"[^>]*>/g
+        /<meta[^>]+property="og:image"[^>]+content="[^"]*"[^>]*>/g,
+        /<meta[^>]+property="og:video:duration"[^>]+content="[^"]*"[^>]*>/g,
+        /<meta[^>]+property="og:video:tag"[^>]+content="[^"]*"[^>]*>/g,
+        
+        // Twitter cards
+        /<meta[^>]+name="twitter:title"[^>]+content="[^"]*"[^>]*>/g,
+        /<meta[^>]+name="twitter:description"[^>]+content="[^"]*"[^>]*>/g,
+        /<meta[^>]+name="twitter:player"[^>]+content="[^"]*"[^>]*>/g,
+        
+        // YouTube specific
+        /<meta[^>]+itemprop="duration"[^>]+content="[^"]*"[^>]*>/g,
+        /<meta[^>]+itemprop="uploadDate"[^>]+content="[^"]*"[^>]*>/g,
+        /<meta[^>]+itemprop="genre"[^>]+content="[^"]*"[^>]*>/g,
+        /<meta[^>]+itemprop="channelId"[^>]+content="[^"]*"[^>]*>/g,
+        /<meta[^>]+itemprop="videoId"[^>]+content="[^"]*"[^>]*>/g,
+        /<meta[^>]+itemprop="interactionCount"[^>]+content="[^"]*"[^>]*>/g
       ];
       
+      relevantContent += '<!-- Meta Tags -->\n';
       metaPatterns.forEach(pattern => {
         const matches = htmlContent.match(pattern);
         if (matches) {
           relevantContent += matches.join('\n') + '\n';
         }
       });
+      relevantContent += '\n';
       
-      // 3. Extract structured data (JSON-LD)
+      // 3. Extract JSON-LD structured data - very important
       const jsonLdMatch = htmlContent.match(/<script[^>]+type="application\/ld\+json"[^>]*>(.*?)<\/script>/gs);
       if (jsonLdMatch) {
-        relevantContent += jsonLdMatch.slice(0, 2).join('\n') + '\n'; // First 2 JSON-LD blocks
+        relevantContent += '<!-- JSON-LD Structured Data -->\n';
+        relevantContent += jsonLdMatch.slice(0, 3).join('\n') + '\n\n';
       }
       
-      // 4. Extract compact ytInitialData (most important for YouTube but very large)
-      const ytDataMatch = htmlContent.match(/var ytInitialData = ({.*?});/);
+      // 4. Extract ytInitialData more intelligently
+      const ytDataMatch = htmlContent.match(/var ytInitialData = ({.*?});/s);
       if (ytDataMatch) {
         try {
           const ytData = JSON.parse(ytDataMatch[1]);
           
-          // Extract only the essential parts we need
+          // Extract the most relevant parts for video metadata
+          const videoDetails = ytData?.contents?.twoColumnWatchNextResults?.results?.results?.contents?.[0]?.videoPrimaryInfoRenderer;
+          const videoSecondary = ytData?.contents?.twoColumnWatchNextResults?.results?.results?.contents?.[1]?.videoSecondaryInfoRenderer;
+          const engagementPanels = ytData?.engagementPanels;
+          
           const essentialData = {
-            contents: {
-              twoColumnWatchNextResults: {
-                results: {
-                  results: {
-                    contents: ytData?.contents?.twoColumnWatchNextResults?.results?.results?.contents?.slice(0, 3)
-                  }
-                }
-              }
-            }
+            videoDetails: videoDetails || {},
+            videoSecondary: videoSecondary || {},
+            engagementPanels: engagementPanels?.slice(0, 2) || []
           };
           
-          relevantContent += `<script>var ytInitialData = ${JSON.stringify(essentialData)};</script>\n`;
+          relevantContent += '<!-- YouTube Initial Data (Essential Parts) -->\n';
+          relevantContent += `<script>var ytInitialData = ${JSON.stringify(essentialData, null, 2)};</script>\n\n`;
         } catch (e) {
-          // If parsing fails, include a truncated version
-          const truncatedYtData = ytDataMatch[1].substring(0, 10000);
-          relevantContent += `<script>var ytInitialData = ${truncatedYtData}...};</script>\n`;
+          // Include key patterns if parsing fails
+          const patterns = [
+            /"title":\s*{[^}]+}/g,
+            /"viewCount":\s*{[^}]+}/g,
+            /"owner":\s*{[^}]+}/g,
+            /"dateText":\s*{[^}]+}/g,
+            /"lengthText":\s*{[^}]+}/g,
+            /"category":\s*"[^"]+"/g
+          ];
+          
+          relevantContent += '<!-- YouTube Data Fragments -->\n';
+          patterns.forEach(pattern => {
+            const matches = ytDataMatch[1].match(pattern);
+            if (matches) {
+              relevantContent += matches.slice(0, 3).join('\n') + '\n';
+            }
+          });
+          relevantContent += '\n';
         }
       }
       
-      // 5. Look for video-specific elements
-      const videoElementPatterns = [
-        /<span[^>]*class="[^"]*view-count[^"]*"[^>]*>.*?<\/span>/gi,
-        /<div[^>]*class="[^"]*video-title[^"]*"[^>]*>.*?<\/div>/gi,
-        /<a[^>]*class="[^"]*channel[^"]*"[^>]*>.*?<\/a>/gi,
-        /<h1[^>]*class="[^"]*title[^"]*"[^>]*>.*?<\/h1>/gi
+      // 5. Look for specific video elements in HTML
+      relevantContent += '<!-- Video Elements -->\n';
+      
+      // Title elements
+      const titlePatterns = [
+        /<h1[^>]*class="[^"]*title[^"]*"[^>]*>.*?<\/h1>/gi,
+        /<yt-formatted-string[^>]*class="[^"]*title[^"]*"[^>]*>.*?<\/yt-formatted-string>/gi,
+        /<span[^>]*id="video-title"[^>]*>.*?<\/span>/gi
       ];
       
-      videoElementPatterns.forEach(pattern => {
+      // View count patterns
+      const viewPatterns = [
+        /<span[^>]*class="[^"]*view-count[^"]*"[^>]*>.*?<\/span>/gi,
+        /<yt-view-count-renderer[^>]*>.*?<\/yt-view-count-renderer>/gi,
+        /[\d,]+\s*views/gi
+      ];
+      
+      // Channel patterns
+      const channelPatterns = [
+        /<a[^>]*class="[^"]*channel-name[^"]*"[^>]*>.*?<\/a>/gi,
+        /<yt-formatted-string[^>]*class="[^"]*ytd-channel-name[^"]*"[^>]*>.*?<\/yt-formatted-string>/gi,
+        /<a[^>]*href="[^"]*\/channel\/[^"]*"[^>]*>.*?<\/a>/gi
+      ];
+      
+      // Date patterns
+      const datePatterns = [
+        /<yt-formatted-string[^>]*class="[^"]*date[^"]*"[^>]*>.*?<\/yt-formatted-string>/gi,
+        /Published on [^<]+/gi,
+        /Premiered [^<]+/gi,
+        /Streamed live [^<]+/gi
+      ];
+      
+      const allPatterns = [...titlePatterns, ...viewPatterns, ...channelPatterns, ...datePatterns];
+      allPatterns.forEach(pattern => {
         const matches = htmlContent.match(pattern);
         if (matches) {
-          relevantContent += matches.slice(0, 3).join('\n') + '\n'; // Max 3 matches per pattern
+          relevantContent += matches.slice(0, 2).join('\n') + '\n';
         }
       });
       
-      // Ensure we don't exceed the size limit
+      // 6. Include any breadcrumb for category
+      const breadcrumbMatch = htmlContent.match(/<div[^>]*class="[^"]*breadcrumb[^"]*"[^>]*>.*?<\/div>/gi);
+      if (breadcrumbMatch) {
+        relevantContent += '\n<!-- Breadcrumbs (Category) -->\n';
+        relevantContent += breadcrumbMatch[0] + '\n';
+      }
+      
+      // Ensure we don't exceed size limit
       if (relevantContent.length > maxSize) {
-        // If still too large, prioritize the most important parts
-        const lines = relevantContent.split('\n');
+        // Prioritize: title > meta > JSON-LD > elements > ytData
+        const sections = relevantContent.split('<!--');
         let finalContent = '';
         
-        for (const line of lines) {
-          if (finalContent.length + line.length + 1 > maxSize) {
+        for (const section of sections) {
+          if (finalContent.length + section.length > maxSize) {
             break;
           }
-          finalContent += line + '\n';
+          finalContent += '<!--' + section;
         }
         
         return finalContent;
@@ -881,11 +975,24 @@ ${this.extractRelevantContent(htmlContent, Math.min(config.htmlChunkSize, 80000)
       return relevantContent;
       
     } catch (error) {
-      // If extraction fails, use a smart fallback
-      // Look for title position and take content around it
-      const titlePos = htmlContent.indexOf('<title>');
-      if (titlePos > 0) {
-        const startPos = Math.max(0, titlePos - 5000);
+      // Smart fallback: find key sections
+      const keyPatterns = [
+        /<title>.*?<\/title>/,
+        /<meta[^>]+property="og:title"[^>]*>/,
+        /var ytInitialData = /
+      ];
+      
+      let bestPosition = -1;
+      for (const pattern of keyPatterns) {
+        const match = htmlContent.match(pattern);
+        if (match && match.index !== undefined) {
+          bestPosition = match.index;
+          break;
+        }
+      }
+      
+      if (bestPosition >= 0) {
+        const startPos = Math.max(0, bestPosition - 5000);
         const endPos = Math.min(htmlContent.length, startPos + maxSize);
         return htmlContent.substring(startPos, endPos);
       }

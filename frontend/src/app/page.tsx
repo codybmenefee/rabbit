@@ -21,6 +21,7 @@ import axios from 'axios';
 import TakeoutGuide from '../components/TakeoutGuide';
 import ProcessingStatus from '../components/ProcessingStatus';
 import DashboardLayout from '../components/DashboardLayout';
+import Navigation from '../components/Navigation';
 import logger from '@/utils/logger';
 
 // API Configuration
@@ -51,14 +52,16 @@ interface UploadResponse {
 export default function HomePage() {
   // State management
   const [step, setStep] = useState<'guide' | 'upload' | 'processing' | 'dashboard'>('guide');
+  const [currentView, setCurrentView] = useState('overview');
+  const [hasMongoData, setHasMongoData] = useState(false);
   const [isConnected, setIsConnected] = useState<boolean | null>(null);
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [processingOptions, setProcessingOptions] = useState<ProcessingOptions>({
     enrichWithAPI: true,
     useScrapingService: false,
     useHighPerformanceService: false,
-    useLLMService: false,
-    selectedService: 'api' as EnrichmentService,
+    useLLMService: true,
+    selectedService: 'llm' as EnrichmentService,
     forceReprocessing: false,
     includeAds: false,
     includeShorts: true
@@ -67,9 +70,10 @@ export default function HomePage() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [processingProgress, setProcessingProgress] = useState(0);
 
-  // Check backend connection on mount
+  // Check backend connection and MongoDB data on mount
   useEffect(() => {
     checkBackendConnection();
+    checkMongoData();
   }, []);
 
   const checkBackendConnection = async () => {
@@ -84,6 +88,18 @@ export default function HomePage() {
         category: 'connection_error',
         endpoint: `${API_BASE_URL}/api/health`
       });
+    }
+  };
+
+  const checkMongoData = async () => {
+    try {
+      const response = await axios.get(`${API_BASE_URL}/api/analytics/database/stats`);
+      if (response.data.success && response.data.data.totalVideos > 0) {
+        setHasMongoData(true);
+      }
+    } catch (error) {
+      // Silently fail - just means no data yet
+      setHasMongoData(false);
     }
   };
 
@@ -217,6 +233,7 @@ export default function HomePage() {
         enrichWithAPI: processingOptions.enrichWithAPI,
         useScrapingService: processingOptions.selectedService === 'scraping',
         useHighPerformanceService: processingOptions.selectedService === 'high-performance',
+        useLLMService: processingOptions.selectedService === 'llm',
         forceReprocessing: processingOptions.forceReprocessing,
         includeAds: processingOptions.includeAds,
         includeShorts: processingOptions.includeShorts
@@ -385,10 +402,11 @@ export default function HomePage() {
                         <input
                           type="radio"
                           name="enrichmentService"
-                          checked={processingOptions.selectedService === 'api'}
+                          checked={processingOptions.selectedService === 'llm'}
                           onChange={() => setProcessingOptions(prev => ({
                             ...prev,
-                            selectedService: 'api',
+                            selectedService: 'llm',
+                            useLLMService: true,
                             useScrapingService: false,
                             useHighPerformanceService: false
                           }))}
@@ -396,10 +414,34 @@ export default function HomePage() {
                         />
                         <div>
                           <span className="text-sm font-medium text-gray-800">
-                            YouTube API <span className="text-green-600 text-xs">(RECOMMENDED)</span>
+                            AI-Powered Extraction <span className="text-green-600 text-xs">(RECOMMENDED - NEW!)</span>
                           </span>
                           <p className="text-sm text-gray-500">
-                            Fast and accurate using official YouTube Data API. Requires API key.
+                            Uses advanced AI to extract comprehensive metadata from YouTube pages. Most accurate and adapts to page changes.
+                          </p>
+                        </div>
+                      </label>
+                      
+                      <label className="flex items-start space-x-3">
+                        <input
+                          type="radio"
+                          name="enrichmentService"
+                          checked={processingOptions.selectedService === 'api'}
+                          onChange={() => setProcessingOptions(prev => ({
+                            ...prev,
+                            selectedService: 'api',
+                            useLLMService: false,
+                            useScrapingService: false,
+                            useHighPerformanceService: false
+                          }))}
+                          className="mt-1 h-4 w-4 text-blue-600 border-gray-300 focus:ring-blue-500"
+                        />
+                        <div>
+                          <span className="text-sm font-medium text-gray-800">
+                            YouTube API <span className="text-blue-600 text-xs">(FAST)</span>
+                          </span>
+                          <p className="text-sm text-gray-500">
+                            Official YouTube Data API. Fast but requires API key and has quota limits.
                           </p>
                         </div>
                       </label>
@@ -663,12 +705,13 @@ export default function HomePage() {
         );
 
       case 'dashboard':
-        return uploadResponse && (
+        return (uploadResponse || hasMongoData) && (
           <DashboardLayout
-            sessionId={uploadResponse.sessionId}
-            initialMetrics={uploadResponse.metrics}
-            processingStats={uploadResponse.processingStats}
-            quotaUsage={uploadResponse.quotaUsage}
+            sessionId={uploadResponse?.sessionId || 'database'}
+            initialMetrics={uploadResponse?.metrics || {}}
+            processingStats={uploadResponse?.processingStats || {}}
+            quotaUsage={uploadResponse?.quotaUsage}
+            currentView={currentView}
             onBackToUpload={() => {
               setStep('upload');
               setUploadedFile(null);
@@ -682,8 +725,34 @@ export default function HomePage() {
     }
   };
 
+  const handleNavigation = (view: string) => {
+    if (view === 'upload') {
+      setStep('upload');
+      setUploadedFile(null);
+      setUploadResponse(null);
+    } else if (view === 'guide') {
+      setStep('guide');
+    } else {
+      // If we have upload response data OR MongoDB data, go to dashboard
+      if (uploadResponse || hasMongoData) {
+        setStep('dashboard');
+        setCurrentView(view);
+      } else {
+        // Otherwise, redirect to upload
+        setStep('upload');
+      }
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
+      <Navigation 
+        currentView={step === 'dashboard' ? currentView : step}
+        onNavigate={handleNavigation}
+        sessionId={uploadResponse?.sessionId}
+        hasData={hasMongoData}
+      />
+      
       <Toaster
         position="top-right"
         toastOptions={{
@@ -696,16 +765,23 @@ export default function HomePage() {
       />
 
       {/* Header */}
-      <header className="bg-white/80 backdrop-blur-sm border-b border-gray-200 sticky top-0 z-40">
+      <header className="bg-white/80 backdrop-blur-sm border-b border-gray-200 sticky top-0 z-30 lg:pl-64">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
-              <div className="h-8 w-8 bg-gradient-to-br from-blue-600 to-purple-600 rounded-lg flex items-center justify-center">
+              <div className="h-8 w-8 bg-gradient-to-br from-blue-600 to-purple-600 rounded-lg flex items-center justify-center lg:hidden">
                 <span className="text-white font-bold text-sm">🐰</span>
               </div>
               <div>
-                <h1 className="text-xl font-bold text-gray-900">Rabbit Analytics</h1>
-                <p className="text-sm text-gray-500">YouTube Watch History Intelligence</p>
+                <h1 className="text-xl font-bold text-gray-900">
+                  {step === 'guide' ? 'Setup Guide' :
+                   step === 'upload' ? 'Upload Data' :
+                   step === 'processing' ? 'Processing' :
+                   step === 'dashboard' ? 'Analytics Dashboard' : 'Rabbit Analytics'}
+                </h1>
+                <p className="text-sm text-gray-500">
+                  {uploadResponse?.sessionId ? `Session: ${uploadResponse.sessionId}` : 'YouTube Watch History Intelligence'}
+                </p>
               </div>
             </div>
 
@@ -723,39 +799,20 @@ export default function HomePage() {
                    'Connecting...'}
                 </span>
               </div>
-
-              {/* Step Indicator */}
-              <div className="hidden sm:flex items-center space-x-2 text-sm text-gray-500">
-                <span className={step === 'guide' ? 'text-blue-600 font-medium' : ''}>
-                  Guide
-                </span>
-                <span>→</span>
-                <span className={step === 'upload' ? 'text-blue-600 font-medium' : ''}>
-                  Upload
-                </span>
-                <span>→</span>
-                <span className={step === 'processing' ? 'text-blue-600 font-medium' : ''}>
-                  Process
-                </span>
-                <span>→</span>
-                <span className={step === 'dashboard' ? 'text-blue-600 font-medium' : ''}>
-                  Analyze
-                </span>
-              </div>
             </div>
           </div>
         </div>
       </header>
 
       {/* Main Content */}
-      <main className="py-8 px-4 sm:px-6 lg:px-8">
+      <main className="py-8 px-4 sm:px-6 lg:px-8 lg:pl-64">
         <AnimatePresence mode="wait">
           {renderCurrentStep()}
         </AnimatePresence>
       </main>
 
       {/* Footer */}
-      <footer className="mt-16 border-t border-gray-200 bg-white/50">
+      <footer className="mt-16 border-t border-gray-200 bg-white/50 lg:pl-64">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <div className="text-center text-gray-500 text-sm">
             <p>© 2024 Rabbit Analytics. Transform your YouTube data into actionable insights.</p>

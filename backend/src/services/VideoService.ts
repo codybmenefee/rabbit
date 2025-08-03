@@ -14,6 +14,7 @@ export interface VideoQueryOptions {
   channel?: string;
   category?: string;
   contentType?: string;
+  search?: string;
 }
 
 export interface BulkUpsertResult {
@@ -334,7 +335,8 @@ export class VideoService {
         dateRange,
         channel,
         category,
-        contentType
+        contentType,
+        search
       } = options;
       
       // Build query filter
@@ -357,6 +359,14 @@ export class VideoService {
       
       if (contentType) {
         filter.contentType = contentType;
+      }
+      
+      if (search) {
+        // Search in title and channel fields
+        filter.$or = [
+          { title: new RegExp(search, 'i') },
+          { channel: new RegExp(search, 'i') }
+        ];
       }
       
       timer.stage('Database Query');

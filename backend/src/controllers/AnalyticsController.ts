@@ -626,6 +626,7 @@ export class AnalyticsController {
       const channel = req.query.channel as string;
       const category = req.query.category as string;
       const contentType = req.query.contentType as string;
+      const search = req.query.search as string;
       
       // Parse date range if provided
       let dateRange;
@@ -644,7 +645,8 @@ export class AnalyticsController {
         dateRange,
         channel,
         category,
-        contentType
+        contentType,
+        search
       });
 
       logger.info('Database videos queried', { 

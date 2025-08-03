@@ -277,8 +277,9 @@ export class ParserService {
       // Enrich with YouTube API, Scraping Service, High-Performance Scraping Service, or LLM Service if requested
       let enrichedEntries = preFilteredEntries;
       if (options.enrichWithAPI) {
-        // Service selection priority: LLM > High-Performance > Scraping > API
-        const useLLMService = options.useLLMService || false;
+        // NEW SERVICE PRIORITY: LLM (Primary) > API > High-Performance > Scraping
+        // Default to LLM service when enrichment is enabled
+        const useLLMService = options.useLLMService !== false; // Default to true unless explicitly disabled
         const useHighPerformanceService = options.useHighPerformanceService || false;
         const useScrapingService = options.useScrapingService || false;
         
@@ -286,19 +287,28 @@ export class ParserService {
         let service: any;
         let isLLMService = false;
         
+        // Prioritize LLM as the primary extraction method
         if (useLLMService && this.youtubeLLMScraping) {
-          serviceName = 'LLM Scraping';
+          serviceName = 'AI-Powered Extraction';
           service = this.youtubeLLMScraping;
           isLLMService = true;
+        } else if (!useLLMService && this.youtubeAPI) {
+          // If LLM is explicitly disabled, try API first
+          serviceName = 'YouTube API';
+          service = this.youtubeAPI;
         } else if (useHighPerformanceService && this.youtubeHighPerformanceScraping) {
           serviceName = 'High-Performance Scraping';
           service = this.youtubeHighPerformanceScraping;
         } else if (useScrapingService && this.youtubeScraping) {
-          serviceName = 'Scraping';
+          serviceName = 'Web Scraping';
           service = this.youtubeScraping;
-        } else {
-          serviceName = 'API';
+        } else if (this.youtubeAPI) {
+          // Final fallback to API if nothing else is available
+          serviceName = 'YouTube API (Fallback)';
           service = this.youtubeAPI;
+        } else {
+          serviceName = 'None';
+          service = null;
         }
         
         if (service) {
@@ -376,30 +386,54 @@ export class ParserService {
             }
 
           } catch (error) {
-            logger.error(`Error during ${serviceName.toLowerCase()} enrichment:`, error);
+            logger.error(`Error during ${serviceName} enrichment:`, error);
             errors.push(`${serviceName} enrichment failed: ${error}`);
             
-            // Try fallback to the other service if the primary one fails
-            if (useScrapingService && this.youtubeAPI) {
-              logger.info('Attempting fallback to YouTube API after scraping failure');
+            // Enhanced fallback chain: LLM → API → Scraping
+            let fallbackAttempted = false;
+            
+            // If LLM failed, try API
+            if (isLLMService && this.youtubeAPI) {
+              logger.info('AI extraction failed, attempting fallback to YouTube API');
+              fallbackAttempted = true;
               try {
                 enrichedEntries = await this.youtubeAPI.enrichVideoEntries(preFilteredEntries);
                 const fallbackEnrichedCount = enrichedEntries.filter(e => e.enrichedWithAPI).length;
                 logger.info(`Fallback API enrichment successful: ${fallbackEnrichedCount} videos enriched`);
-              } catch (fallbackError) {
-                logger.error('Fallback API enrichment also failed:', fallbackError);
-                errors.push(`Fallback API enrichment failed: ${fallbackError}`);
+              } catch (apiError) {
+                logger.error('API fallback also failed:', apiError);
+                errors.push(`API fallback failed: ${apiError}`);
+                
+                // Try scraping as final fallback
+                if (this.youtubeScraping) {
+                  logger.info('API fallback failed, attempting web scraping as final fallback');
+                  try {
+                    enrichedEntries = await this.youtubeScraping.enrichVideoEntries(preFilteredEntries);
+                    const scrapingEnrichedCount = enrichedEntries.filter(e => e.enrichedWithAPI).length;
+                    logger.info(`Final fallback scraping successful: ${scrapingEnrichedCount} videos enriched`);
+                  } catch (scrapingError) {
+                    logger.error('All enrichment methods failed:', scrapingError);
+                    errors.push(`All enrichment methods failed: ${scrapingError}`);
+                  }
+                }
               }
-            } else if (!useScrapingService && this.youtubeScraping) {
-              logger.info('Attempting fallback to scraping service after API failure');
+            } 
+            // If API failed and LLM wasn't used, try scraping
+            else if (!isLLMService && serviceName.includes('API') && this.youtubeScraping) {
+              logger.info('API failed, attempting fallback to web scraping');
+              fallbackAttempted = true;
               try {
                 enrichedEntries = await this.youtubeScraping.enrichVideoEntries(preFilteredEntries);
                 const fallbackEnrichedCount = enrichedEntries.filter(e => e.enrichedWithAPI).length;
                 logger.info(`Fallback scraping enrichment successful: ${fallbackEnrichedCount} videos enriched`);
               } catch (fallbackError) {
-                logger.error('Fallback scraping enrichment also failed:', fallbackError);
-                errors.push(`Fallback scraping enrichment failed: ${fallbackError}`);
+                logger.error('Scraping fallback also failed:', fallbackError);
+                errors.push(`Scraping fallback failed: ${fallbackError}`);
               }
+            }
+            
+            if (!fallbackAttempted) {
+              logger.warn('No fallback services available after enrichment failure');
             }
           }
         } else {
