@@ -7,6 +7,11 @@
  * and compare its performance with the YouTube API service.
  */
 
+const path = require('path');
+
+// Load environment variables from root directory
+require('../../backend/node_modules/dotenv').config({ path: path.join(__dirname, '../../.env') });
+
 const API_BASE_URL = process.env.API_BASE_URL || 'http://localhost:5000';
 
 // Test video IDs for demonstration

@@ -57,6 +57,7 @@ export default function HomePage() {
     enrichWithAPI: true,
     useScrapingService: false,
     useHighPerformanceService: false,
+    useLLMService: false,
     selectedService: 'api' as EnrichmentService,
     forceReprocessing: false,
     includeAds: false,

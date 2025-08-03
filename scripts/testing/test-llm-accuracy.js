@@ -7,6 +7,9 @@
 const fs = require('fs');
 const path = require('path');
 
+// Load environment variables from root directory
+require('../../backend/node_modules/dotenv').config({ path: path.join(__dirname, '../../.env') });
+
 // Use built-in fetch if available, otherwise import node-fetch
 const fetch = globalThis.fetch || require('node-fetch');
 

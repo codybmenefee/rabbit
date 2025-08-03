@@ -20,7 +20,8 @@ interface ProcessingStatusProps {
     enrichWithAPI: boolean;
     useScrapingService: boolean;
     useHighPerformanceService: boolean;
-    selectedService: 'api' | 'scraping' | 'high-performance';
+    useLLMService: boolean;
+    selectedService: 'api' | 'scraping' | 'high-performance' | 'llm';
     forceReprocessing: boolean;
     includeAds: boolean;
     includeShorts: boolean;
