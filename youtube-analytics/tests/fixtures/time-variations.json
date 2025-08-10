@@ -1,0 +1,53 @@
+{
+  "standardTimestamp": {
+    "id": "2024-08-20T16:30:45Z_standard",
+    "watchedAt": "2024-08-20T16:30:45Z",
+    "videoId": "standard123",
+    "videoTitle": "Regular Video Entry",
+    "videoUrl": "https://www.youtube.com/watch?v=standard123",
+    "channelTitle": "Standard Channel",
+    "channelUrl": "https://www.youtube.com/channel/UCstandard",
+    "product": "YouTube",
+    "topics": ["general"],
+    "year": 2024,
+    "month": 8,
+    "week": 34,
+    "dayOfWeek": 2,
+    "hour": 16,
+    "yoyKey": "2024-08"
+  },
+  "earlyMorning": {
+    "id": "2024-07-05T02:15:00Z_early",
+    "watchedAt": "2024-07-05T02:15:00Z",
+    "videoId": "early456",
+    "videoTitle": "Late Night Coding Session",
+    "videoUrl": "https://www.youtube.com/watch?v=early456",
+    "channelTitle": "Night Owl Developers",
+    "channelUrl": "https://www.youtube.com/channel/UCnightowl",
+    "product": "YouTube",
+    "topics": ["programming", "coding"],
+    "year": 2024,
+    "month": 7,
+    "week": 27,
+    "dayOfWeek": 5,
+    "hour": 2,
+    "yoyKey": "2024-07"
+  },
+  "yearBoundary": {
+    "id": "2023-12-31T23:59:30Z_boundary",
+    "watchedAt": "2023-12-31T23:59:30Z",
+    "videoId": "boundary789",
+    "videoTitle": "New Year's Eve Countdown",
+    "videoUrl": "https://www.youtube.com/watch?v=boundary789",
+    "channelTitle": "Celebration Central",
+    "channelUrl": "https://www.youtube.com/channel/UCcelebration",
+    "product": "YouTube",
+    "topics": ["celebration", "new year"],
+    "year": 2023,
+    "month": 12,
+    "week": 53,
+    "dayOfWeek": 0,
+    "hour": 23,
+    "yoyKey": "2023-12"
+  }
+}

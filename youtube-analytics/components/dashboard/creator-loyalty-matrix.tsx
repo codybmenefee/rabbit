@@ -34,7 +34,7 @@ export function CreatorLoyaltyMatrix({ creators }: CreatorLoyaltyMatrixProps) {
     category: creator.category
   }))
 
-  const CustomTooltip = ({ active, payload }: any) => {
+  const CustomTooltip = ({ active, payload }: { active?: boolean; payload?: Array<{ payload: { name: string; frequency: number; avgDuration: number; totalTime: number; loyalty: number; category: string } }> }) => {
     if (active && payload && payload.length) {
       const data = payload[0].payload
       return (

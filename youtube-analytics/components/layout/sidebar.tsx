@@ -1,31 +1,36 @@
 'use client'
 
-import { useState } from 'react'
-import { motion } from 'framer-motion'
+import { useState, useEffect } from 'react'
 import { 
   BarChart3, 
   TrendingUp, 
-  Calendar, 
+  Clock, 
   Users, 
   Settings, 
   Upload,
-  Brain,
-  Target,
-  ChevronLeft,
-  ChevronRight
+  Layers,
+  Home,
+  Search,
+  Database,
+  Menu,
+  X
 } from 'lucide-react'
+import Link from 'next/link'
+import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
-import { Button } from '@/components/ui/button'
 
 const navigation = [
-  { name: 'Dashboard', href: '/', icon: BarChart3, current: true },
-  { name: 'Trends', href: '/trends', icon: TrendingUp, current: false },
-  { name: 'Timeline', href: '/timeline', icon: Calendar, current: false },
-  { name: 'Creators', href: '/creators', icon: Users, current: false },
-  { name: 'Insights', href: '/insights', icon: Brain, current: false },
-  { name: 'Goals', href: '/goals', icon: Target, current: false },
-  { name: 'Upload', href: '/upload', icon: Upload, current: false },
-  { name: 'Settings', href: '/settings', icon: Settings, current: false },
+  { name: 'Dashboard', href: '/', icon: Home },
+  { name: 'Analytics', href: '/analytics', icon: BarChart3 },
+  { name: 'Channels', href: '/channels', icon: Users },
+  { name: 'Topics', href: '/topics', icon: Layers },
+  { name: 'History', href: '/history', icon: Clock },
+  { name: 'Trends', href: '/trends', icon: TrendingUp },
+]
+
+const bottomNavigation = [
+  { name: 'Import Data', href: '/import', icon: Upload },
+  { name: 'Settings', href: '/settings', icon: Settings },
 ]
 
 interface SidebarProps {
@@ -33,100 +38,159 @@ interface SidebarProps {
 }
 
 export function Sidebar({ className }: SidebarProps) {
-  const [collapsed, setCollapsed] = useState(false)
+  const pathname = usePathname()
+  const [isMobileOpen, setIsMobileOpen] = useState(false)
+
+  // Close mobile sidebar when route changes
+  useEffect(() => {
+    setIsMobileOpen(false)
+  }, [pathname])
+
+  // Close mobile sidebar on escape key
+  useEffect(() => {
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setIsMobileOpen(false)
+      }
+    }
+    
+    if (isMobileOpen) {
+      document.addEventListener('keydown', handleEscape)
+      return () => document.removeEventListener('keydown', handleEscape)
+    }
+  }, [isMobileOpen])
 
   return (
-    <motion.div
-      initial={{ x: -100, opacity: 0 }}
-      animate={{ x: 0, opacity: 1 }}
-      transition={{ duration: 0.5 }}
-      className={cn(
-        "glass-card h-screen transition-all duration-300 ease-in-out",
-        collapsed ? "w-16" : "w-64",
-        className
+    <>
+      {/* Mobile Menu Button */}
+      <button
+        onClick={() => setIsMobileOpen(true)}
+        className="lg:hidden fixed top-4 left-4 z-50 p-2 rounded-lg bg-black/40 backdrop-blur-2xl border border-white/[0.08] text-white hover:bg-black/60 transition-colors"
+        aria-label="Open navigation menu"
+      >
+        <Menu className="w-5 h-5" />
+      </button>
+
+      {/* Mobile Overlay */}
+      {isMobileOpen && (
+        <div
+          className="lg:hidden fixed inset-0 z-40 bg-black/50 backdrop-blur-sm"
+          onClick={() => setIsMobileOpen(false)}
+        />
       )}
-    >
-      <div className="flex h-full flex-col">
-        {/* Header */}
-        <div className="flex items-center justify-between p-4">
-          {!collapsed && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 0.2 }}
-              className="flex items-center"
-            >
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-r from-primary to-pink-500">
-                <BarChart3 className="h-5 w-5 text-white" />
-              </div>
-              <span className="ml-3 text-lg font-semibold gradient-text">
-                YouTube Analytics
-              </span>
-            </motion.div>
-          )}
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => setCollapsed(!collapsed)}
-            className="h-8 w-8"
+
+      {/* Sidebar */}
+      <div className={cn(
+        "flex h-full w-56 flex-col bg-black/40 backdrop-blur-2xl border-r border-white/[0.08] transition-transform duration-300 lg:translate-x-0",
+        "lg:relative fixed inset-y-0 left-0 z-50",
+        isMobileOpen ? "translate-x-0" : "-translate-x-full",
+        className
+      )}>
+        {/* Logo */}
+        <div className="flex h-16 items-center px-6 border-b border-white/[0.08]">
+          <div className="flex items-center gap-3 flex-1">
+            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center shadow-lg shadow-purple-500/20">
+              <BarChart3 className="w-5 h-5 text-white" />
+            </div>
+            <span className="text-base font-semibold text-white">YT Analytics</span>
+          </div>
+          
+          {/* Mobile Close Button */}
+          <button
+            onClick={() => setIsMobileOpen(false)}
+            className="lg:hidden p-1 rounded text-gray-400 hover:text-white"
+            aria-label="Close navigation menu"
           >
-            {collapsed ? (
-              <ChevronRight className="h-4 w-4" />
-            ) : (
-              <ChevronLeft className="h-4 w-4" />
-            )}
-          </Button>
+            <X className="w-5 h-5" />
+          </button>
         </div>
 
-        {/* Navigation */}
-        <nav className="flex-1 space-y-1 px-2 py-4">
-          {navigation.map((item, index) => (
-            <motion.div
-              key={item.name}
-              initial={{ x: -50, opacity: 0 }}
-              animate={{ x: 0, opacity: 1 }}
-              transition={{ delay: index * 0.1 }}
-            >
-              <a
-                href={item.href}
-                className={cn(
-                  "group flex items-center rounded-lg px-2 py-2 text-sm font-medium transition-colors",
-                  item.current
-                    ? "bg-primary/10 text-primary neon-glow"
-                    : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-                )}
-              >
-                <item.icon
-                  className={cn(
-                    "h-5 w-5 shrink-0 transition-colors",
-                    item.current ? "text-primary" : "text-muted-foreground group-hover:text-accent-foreground"
-                  )}
-                  aria-hidden="true"
-                />
-                {!collapsed && (
-                  <span className="ml-3 truncate">{item.name}</span>
-                )}
-              </a>
-            </motion.div>
-          ))}
-        </nav>
+      {/* Search */}
+      <div className="px-3 py-4">
+        <button className="w-full flex items-center gap-2 px-3 py-2 rounded-lg bg-white/[0.04] border border-white/[0.08] text-gray-400 text-sm hover:bg-white/[0.08] hover:border-white/[0.12] transition-all">
+          <Search className="w-4 h-4" />
+          <span>Search</span>
+        </button>
+      </div>
 
-        {/* User Section */}
-        <div className="p-4">
-          <div className={cn(
-            "flex items-center rounded-lg bg-accent/20 p-3",
-            collapsed && "justify-center"
-          )}>
-            <div className="h-8 w-8 rounded-full bg-gradient-to-r from-primary to-pink-500" />
-            {!collapsed && (
-              <div className="ml-3">
-                <p className="text-sm font-medium">Demo User</p>
-                <p className="text-xs text-muted-foreground">Free Plan</p>
-              </div>
-            )}
-          </div>
+      {/* Main Navigation */}
+      <nav className="flex-1 px-3" aria-label="Main navigation">
+        <ul className="space-y-1" role="list">
+          {navigation.map((item) => {
+            const isActive = pathname === item.href
+            return (
+              <li key={item.name}>
+                <Link
+                  href={item.href}
+                  className={cn(
+                    "flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200",
+                    "hover:bg-white/[0.06] focus:outline-none focus:ring-2 focus:ring-purple-500/30 focus:bg-white/[0.08]",
+                    isActive
+                      ? "bg-purple-500/10 text-white border border-purple-500/20"
+                      : "text-gray-400 hover:text-gray-200"
+                  )}
+                  aria-current={isActive ? "page" : undefined}
+                >
+                  <item.icon 
+                    className={cn(
+                      "h-4 w-4 flex-shrink-0",
+                      isActive && "text-purple-400"
+                    )} 
+                    aria-hidden="true"
+                  />
+                  {item.name}
+                </Link>
+              </li>
+            )
+          })}
+        </ul>
+      </nav>
+
+      {/* Bottom Navigation */}
+      <div className="px-3 py-4 border-t border-white/[0.08]">
+        <nav aria-label="Secondary navigation">
+          <ul className="space-y-1" role="list">
+            {bottomNavigation.map((item) => {
+              const isActive = pathname === item.href
+              return (
+                <li key={item.name}>
+                  <Link
+                    href={item.href}
+                    className={cn(
+                      "flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200",
+                      "hover:bg-white/[0.06] focus:outline-none focus:ring-2 focus:ring-purple-500/30 focus:bg-white/[0.08]",
+                      item.name === 'Import Data' 
+                        ? "bg-gradient-to-r from-purple-500/20 to-pink-500/20 text-purple-300 border border-purple-500/30 hover:from-purple-500/30 hover:to-pink-500/30"
+                        : isActive
+                          ? "bg-purple-500/10 text-white border border-purple-500/20"
+                          : "text-gray-400 hover:text-gray-200"
+                    )}
+                    aria-current={isActive ? "page" : undefined}
+                  >
+                    <item.icon 
+                      className={cn(
+                        "h-4 w-4 flex-shrink-0",
+                        item.name === 'Import Data' && "text-purple-400"
+                      )} 
+                      aria-hidden="true"
+                    />
+                    {item.name}
+                  </Link>
+                </li>
+              )
+            })}
+          </ul>
+        </nav>
+      </div>
+
+      {/* Storage Indicator */}
+      <div className="px-6 py-4 border-t border-white/[0.08]">
+        <div className="flex items-center gap-2 text-xs text-gray-500" role="status" aria-label="Data storage status">
+          <Database className="w-3 h-3" aria-hidden="true" />
+          <span>No data imported</span>
         </div>
       </div>
-    </motion.div>
+      </div>
+    </>
   )
 }

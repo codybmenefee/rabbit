@@ -22,12 +22,12 @@ const topicColors = {
 export function StreamGraph({ data }: StreamGraphProps) {
   const topics = Object.keys(topicColors)
 
-  const CustomTooltip = ({ active, payload, label }: any) => {
+  const CustomTooltip = ({ active, payload, label }: { active?: boolean; payload?: Array<{ dataKey: string; color: string; value: number }>; label?: string }) => {
     if (active && payload && payload.length) {
       return (
         <div className="glass-card p-3 border border-white/20">
           <p className="text-sm font-medium mb-2">{format(new Date(label), 'MMM d, yyyy')}</p>
-          {payload.map((entry: any) => (
+          {payload.map((entry) => (
             <div key={entry.dataKey} className="flex items-center justify-between space-x-3">
               <div className="flex items-center space-x-2">
                 <div 

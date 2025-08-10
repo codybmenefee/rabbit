@@ -1,14 +1,18 @@
+// Legacy interface - prefer WatchRecord for new development
 export interface VideoWatch {
   id: string
   title: string
   channel: string
-  category: string
-  duration: number // seconds
+  category?: string         // Optional since not available in Google Takeout
+  duration?: number         // seconds - optional since not in Takeout
   watchedAt: Date
-  watchedDuration: number // seconds actually watched
+  watchedDuration?: number  // seconds actually watched - optional
   url: string
   thumbnailUrl?: string
 }
+
+// Re-export from records for consistency
+export type { WatchRecord, EnrichedVideoWatch } from './records'
 
 export interface TopicTrend {
   topic: string

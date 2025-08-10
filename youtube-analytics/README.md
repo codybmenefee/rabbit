@@ -1,132 +1,73 @@
 # YouTube Analytics Intelligence Platform
 
-A modern, AI-powered analytics dashboard for YouTube viewing history analysis. Built with Next.js, TypeScript, and advanced data visualizations.
+A Next.js-based analytics dashboard for visualizing YouTube viewing history data from Google Takeout exports.
 
-## Features
+## Project Structure
 
-🎯 **Comprehensive Analytics**
-- Total watch time, videos watched, channel diversity metrics
-- Year-over-year creator comparison and trending analysis
-- Topic-based heatmaps showing interest evolution over time
-
-📊 **Advanced Visualizations**
-- Stream graphs showing topic evolution
-- Creator loyalty matrix with engagement patterns
-- Event correlation detection and impact analysis
-- Interactive heatmaps and scatter plots
-
-🤖 **AI-Powered Insights**
-- Automatic pattern detection
-- Event correlation analysis
-- Personalized viewing behavior insights
-- Predictive trend analysis
-
-🎨 **Modern Design**
-- Glass morphism UI with vibrant gradients
-- Dark theme with neon accents
-- Smooth animations and micro-interactions
-- Responsive design for all devices
-
-## Tech Stack
-
-- **Framework**: Next.js 15 with App Router
-- **Language**: TypeScript
-- **Styling**: Tailwind CSS with custom design system
-- **Animations**: Framer Motion
-- **Charts**: Recharts
-- **Icons**: Lucide React
-- **UI Components**: Custom shadcn/ui implementation
-
-## Getting Started
-
-1. **Install dependencies**
-   ```bash
-   npm install
-   ```
-
-2. **Run the development server**
-   ```bash
-   npm run dev
-   ```
-
-3. **Open the application**
-   Navigate to [http://localhost:3000](http://localhost:3000)
-
-## Data Structure
-
-The app is designed to process YouTube Takeout data with the following structure:
-
-```typescript
-interface VideoWatch {
-  id: string
-  title: string
-  channel: string
-  category: string
-  duration: number
-  watchedAt: Date
-  watchedDuration: number
-  url: string
-}
+```
+youtube-analytics/
+├── app/                    # Next.js App Router pages and layouts
+├── components/            # React components
+│   ├── dashboard/         # Data visualization components
+│   ├── import/           # Data import and processing UI
+│   ├── layout/           # Application layout components
+│   └── ui/               # Reusable UI primitives
+├── lib/                   # Core utilities and data processing
+├── types/                 # TypeScript type definitions
+├── docs/                  # Project documentation
+│   ├── agents/           # Agent reports and summaries
+│   ├── architecture/     # Architecture documentation
+│   └── api/              # API documentation
+├── tests/                 # Testing files and fixtures
+│   ├── fixtures/         # Test data and sample files
+│   ├── unit/             # Unit tests
+│   └── integration/      # Integration tests
+├── scripts/               # Development and maintenance scripts
+│   ├── validation/       # Data validation scripts
+│   ├── testing/          # Testing utilities
+│   └── dev-tools/        # Development tools
+└── .dev/                  # Development artifacts and logs
 ```
 
-## Architecture
+## Quick Start
 
-The project is structured for easy backend integration:
+```bash
+# Install dependencies
+npm install
 
-- `types/` - TypeScript interfaces for all data models
-- `lib/mock-data.ts` - Mock data generator (replace with API calls)
-- `components/dashboard/` - Visualization components
-- `app/` - Next.js app router pages
+# Run development server
+npm run dev
 
-## Customization
+# Build for production
+npm run build
 
-### Adding New Visualizations
-
-1. Create a new component in `components/dashboard/`
-2. Add required data types to `types/index.ts`
-3. Update mock data generator in `lib/mock-data.ts`
-4. Import and use in the main dashboard page
-
-### Color Schemes
-
-Colors are defined in `tailwind.config.js` and `app/globals.css`. The design uses:
-- Deep black/purple backgrounds
-- Vibrant gradient accents (purple, pink, cyan)
-- Glass morphism effects with backdrop blur
-
-### Data Integration
-
-Replace mock data functions in `lib/mock-data.ts` with actual API calls:
-
-```typescript
-// Replace this
-export function getMockWatchHistory(): VideoWatch[] {
-  return generateRandomWatchHistory()
-}
-
-// With this
-export async function getWatchHistory(): Promise<VideoWatch[]> {
-  const response = await fetch('/api/watch-history')
-  return response.json()
-}
+# Run linting
+npm run lint
 ```
 
-## Performance
+## Key Features
 
-- Uses React 19 with concurrent features
-- Recharts for optimized chart rendering
-- Framer Motion for smooth animations
-- Tailwind for minimal CSS bundle size
+- **Client-side HTML parsing** of Google Takeout watch history
+- **Interactive dashboard** with charts and metrics
+- **Advanced filtering** by timeframe, product, topics, and channels
+- **Year-over-year analytics** with trend calculations
+- **Topic classification** with ML-style pattern matching
+- **Responsive design** with glassmorphism UI
 
-## Future Enhancements
+## Documentation
 
-- Real-time data processing
-- Export capabilities (PDF, CSV)
-- Advanced filtering and time range selection
-- Social comparison features
-- Mobile app companion
-- YouTube API integration for live data
+- [Architecture Overview](docs/architecture/)
+- [Agent Reports](docs/agents/)
+- [API Documentation](docs/api/)
+- [Testing Guide](tests/)
 
-## License
+## Development
 
-MIT License - feel free to use for personal or commercial projects.
+This project uses:
+- **Next.js 15** with App Router
+- **TypeScript** with strict mode
+- **Tailwind CSS** for styling
+- **Recharts** for data visualization
+- **date-fns** for date manipulation
+
+For detailed development instructions, see [CLAUDE.md](../CLAUDE.md).

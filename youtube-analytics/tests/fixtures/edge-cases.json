@@ -1,0 +1,53 @@
+{
+  "normalVideoWatch": {
+    "id": "2025-01-15T10:30:00Z_abc123",
+    "watchedAt": "2025-01-15T10:30:00Z",
+    "videoId": "abc123",
+    "videoTitle": "How to Build Amazing Web Apps",
+    "videoUrl": "https://www.youtube.com/watch?v=abc123",
+    "channelTitle": "Tech Tutorials Pro",
+    "channelUrl": "https://www.youtube.com/channel/UCexample",
+    "product": "YouTube",
+    "topics": ["programming", "web development"],
+    "year": 2025,
+    "month": 1,
+    "week": 3,
+    "dayOfWeek": 3,
+    "hour": 10,
+    "yoyKey": "2025-01"
+  },
+  "privateVideo": {
+    "id": "2024-12-20T15:45:00Z_private",
+    "watchedAt": "2024-12-20T15:45:00Z",
+    "videoId": null,
+    "videoTitle": "Private video",
+    "videoUrl": null,
+    "channelTitle": null,
+    "channelUrl": null,
+    "product": "YouTube",
+    "topics": [],
+    "year": 2024,
+    "month": 12,
+    "week": 51,
+    "dayOfWeek": 5,
+    "hour": 15,
+    "yoyKey": "2024-12"
+  },
+  "youtubeMusicEntry": {
+    "id": "2024-11-08T20:15:30Z_music456",
+    "watchedAt": "2024-11-08T20:15:30Z",
+    "videoId": "music456",
+    "videoTitle": "Chill Lo-Fi Beats for Coding",
+    "videoUrl": "https://www.youtube.com/watch?v=music456",
+    "channelTitle": "Lo-Fi Records",
+    "channelUrl": "https://www.youtube.com/channel/UClofimusic",
+    "product": "YouTube Music",
+    "topics": ["music", "lo-fi"],
+    "year": 2024,
+    "month": 11,
+    "week": 45,
+    "dayOfWeek": 5,
+    "hour": 20,
+    "yoyKey": "2024-11"
+  }
+}

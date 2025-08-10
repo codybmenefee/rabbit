@@ -1,0 +1,53 @@
+{
+  "missingTimestamp": {
+    "id": "unknown_timestamp_xyz789",
+    "watchedAt": null,
+    "videoId": "xyz789",
+    "videoTitle": "Video with Missing Timestamp",
+    "videoUrl": "https://www.youtube.com/watch?v=xyz789",
+    "channelTitle": "Tech Channel",
+    "channelUrl": "https://www.youtube.com/channel/UCtech",
+    "product": "YouTube",
+    "topics": ["technology"],
+    "year": null,
+    "month": null,
+    "week": null,
+    "dayOfWeek": null,
+    "hour": null,
+    "yoyKey": null
+  },
+  "nonAsciiCharacters": {
+    "id": "2024-10-15T14:20:00Z_unicode123",
+    "watchedAt": "2024-10-15T14:20:00Z",
+    "videoId": "unicode123",
+    "videoTitle": "Técnicas Avanzadas de Programación 🚀 | Tutorial en Español",
+    "videoUrl": "https://www.youtube.com/watch?v=unicode123",
+    "channelTitle": "Programación & Código",
+    "channelUrl": "https://www.youtube.com/channel/UCespanol",
+    "product": "YouTube",
+    "topics": ["programming", "tutorial"],
+    "year": 2024,
+    "month": 10,
+    "week": 42,
+    "dayOfWeek": 2,
+    "hour": 14,
+    "yoyKey": "2024-10"
+  },
+  "missingVideoUrl": {
+    "id": "2024-09-12T09:00:00Z_missing",
+    "watchedAt": "2024-09-12T09:00:00Z",
+    "videoId": null,
+    "videoTitle": "Deleted Video Title Still Showing",
+    "videoUrl": null,
+    "channelTitle": "Channel Name Still Present",
+    "channelUrl": "https://www.youtube.com/channel/UCstillhere",
+    "product": "YouTube",
+    "topics": [],
+    "year": 2024,
+    "month": 9,
+    "week": 37,
+    "dayOfWeek": 4,
+    "hour": 9,
+    "yoyKey": "2024-09"
+  }
+}
