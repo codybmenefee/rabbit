@@ -13,7 +13,7 @@ interface MonthlyTrendChartProps {
 
 export function MonthlyTrendChart({ 
   data, 
-  title = 'Monthly Viewing Trend',
+  title = 'MONTHLY_TREND_ANALYSIS',
   height = 300 
 }: MonthlyTrendChartProps) {
   return (
@@ -22,13 +22,13 @@ export function MonthlyTrendChart({
       animate={{ y: 0, opacity: 1 }}
       transition={{ duration: 0.4 }}
     >
-      <Card className="border-white/5 bg-black/40 backdrop-blur-xl">
+      <Card>
         <CardHeader>
-          <CardTitle className="text-xl font-semibold text-white">
+          <CardTitle className="text-xl font-semibold text-terminal-text terminal-text">
             {title}
           </CardTitle>
-          <p className="text-sm text-muted-foreground">
-            Videos watched over time
+          <p className="text-sm text-terminal-muted terminal-text">
+            TEMPORAL_VIDEO_CONSUMPTION_ANALYSIS
           </p>
         </CardHeader>
         <CardContent>

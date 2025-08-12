@@ -24,47 +24,93 @@ import {
   format,
   getHours,
   getDay,
-  parseISO
+  parseISO,
+  differenceInMinutes,
+  differenceInDays,
+  startOfDay,
+  endOfDay
 } from 'date-fns'
 
 function applyFilters(records: WatchRecord[], filters: FilterOptions): WatchRecord[] {
   let filtered = [...records]
   const now = new Date()
 
+  // Debug logging for large datasets
+  if (records.length > 1000) {
+    console.log('🔧 Large dataset filtering:', {
+      totalRecords: records.length,
+      timeframe: filters.timeframe,
+      sampleTimestamps: records.slice(0, 10).map(r => ({ 
+        id: r.id, 
+        watchedAt: r.watchedAt,
+        rawTimestamp: r.rawTimestamp,
+        videoTitle: r.videoTitle?.substring(0, 30)
+      }))
+    })
+  }
+
   // Apply timeframe filter - only to records with valid timestamps
-  filtered = filtered.filter(r => r.watchedAt !== null)
+  const beforeTimestampFilter = filtered.length
+  const recordsWithTimestamps = filtered.filter(r => r.watchedAt !== null)
   
-  switch (filters.timeframe) {
-    case 'MTD':
-      filtered = filtered.filter(r => {
-        const watchDate = parseISO(r.watchedAt!)
-        return isWithinInterval(watchDate, { start: startOfMonth(now), end: now })
-      })
-      break
-    case 'QTD':
-      filtered = filtered.filter(r => {
-        const watchDate = parseISO(r.watchedAt!)
-        return isWithinInterval(watchDate, { start: startOfQuarter(now), end: now })
-      })
-      break
-    case 'YTD':
-      filtered = filtered.filter(r => {
-        const watchDate = parseISO(r.watchedAt!)
-        return isWithinInterval(watchDate, { start: startOfYear(now), end: now })
-      })
-      break
-    case 'Last6M':
-      filtered = filtered.filter(r => {
-        const watchDate = parseISO(r.watchedAt!)
-        return isWithinInterval(watchDate, { start: subMonths(now, 6), end: now })
-      })
-      break
-    case 'Last12M':
-      filtered = filtered.filter(r => {
-        const watchDate = parseISO(r.watchedAt!)
-        return isWithinInterval(watchDate, { start: subMonths(now, 12), end: now })
-      })
-      break
+  if (records.length > 1000) {
+    console.log('📅 After timestamp filter:', {
+      before: beforeTimestampFilter,
+      withTimestamps: recordsWithTimestamps.length,
+      nullTimestamps: beforeTimestampFilter - recordsWithTimestamps.length
+    })
+    
+    // For debugging: show some records with null timestamps
+    const nullTimestampSample = filtered.filter(r => r.watchedAt === null).slice(0, 3)
+    console.log('🚨 Sample null timestamp records:', nullTimestampSample.map(r => ({
+      id: r.id,
+      rawTimestamp: r.rawTimestamp,
+      videoTitle: r.videoTitle?.substring(0, 40)
+    })))
+  }
+  
+  // TEMPORARY: Don't filter out null timestamps for debugging
+  // filtered = recordsWithTimestamps
+  
+  // TEMPORARY: Skip timeframe filtering if most records have null timestamps
+  const hasValidTimestamps = recordsWithTimestamps.length > 0
+  if (hasValidTimestamps && filters.timeframe !== 'All') {
+    filtered = recordsWithTimestamps
+    switch (filters.timeframe) {
+      case 'MTD':
+        filtered = filtered.filter(r => {
+          const watchDate = parseISO(r.watchedAt!)
+          return isWithinInterval(watchDate, { start: startOfMonth(now), end: now })
+        })
+        break
+      case 'QTD':
+        filtered = filtered.filter(r => {
+          const watchDate = parseISO(r.watchedAt!)
+          return isWithinInterval(watchDate, { start: startOfQuarter(now), end: now })
+        })
+        break
+      case 'YTD':
+        filtered = filtered.filter(r => {
+          const watchDate = parseISO(r.watchedAt!)
+          return isWithinInterval(watchDate, { start: startOfYear(now), end: now })
+        })
+        break
+      case 'Last6M':
+        filtered = filtered.filter(r => {
+          const watchDate = parseISO(r.watchedAt!)
+          return isWithinInterval(watchDate, { start: subMonths(now, 6), end: now })
+        })
+        break
+      case 'Last12M':
+        filtered = filtered.filter(r => {
+          const watchDate = parseISO(r.watchedAt!)
+          return isWithinInterval(watchDate, { start: subMonths(now, 12), end: now })
+        })
+        break
+    }
+  } else {
+    // Keep all records for 'All' timeframe or when timestamps are missing
+    console.log('⚠️ Keeping all records due to missing timestamps or All timeframe')
   }
 
   // Apply product filter
@@ -84,6 +130,19 @@ function applyFilters(records: WatchRecord[], filters: FilterOptions): WatchReco
     filtered = filtered.filter(r => 
       r.channelTitle && filters.channels?.includes(r.channelTitle)
     )
+  }
+
+  if (records.length > 1000) {
+    console.log('✅ Final filtering result:', {
+      originalCount: records.length,
+      finalCount: filtered.length,
+      sampleFinalRecords: filtered.slice(0, 3).map(r => ({
+        id: r.id,
+        watchedAt: r.watchedAt,
+        title: r.videoTitle?.substring(0, 30),
+        channel: r.channelTitle
+      }))
+    })
   }
 
   return filtered
@@ -392,5 +451,231 @@ export function normalizeWatchRecord(
     hour: date ? date.getHours() : null,
     yoyKey: date ? `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}` : null,
     rawTimestamp: rawData.rawTimestamp
+  }
+}
+
+// Enhanced aggregation functions for History page
+
+export function computeHistoryAnalytics(records: WatchRecord[]) {
+  const validRecords = records.filter(r => r.watchedAt !== null)
+  
+  if (validRecords.length === 0) {
+    return {
+      totalVideos: 0,
+      uniqueChannels: 0,
+      totalDays: 0,
+      avgVideosPerDay: 0,
+      dateRange: { start: null, end: null }
+    }
+  }
+
+  // Calculate date range
+  const dates = validRecords
+    .map(r => parseISO(r.watchedAt!))
+    .sort((a, b) => a.getTime() - b.getTime())
+  
+  const startDate = dates[0]
+  const endDate = dates[dates.length - 1]
+  const totalDays = differenceInDays(endDate, startDate) + 1
+  
+  // Calculate unique metrics
+  const uniqueChannels = new Set(
+    validRecords.map(r => r.channelTitle).filter(Boolean)
+  ).size
+
+  return {
+    totalVideos: validRecords.length,
+    uniqueChannels,
+    totalDays,
+    avgVideosPerDay: totalDays > 0 ? (validRecords.length / totalDays) : 0,
+    dateRange: { start: startDate, end: endDate }
+  }
+}
+
+export function computeSessionAnalysis(records: WatchRecord[]) {
+  const validRecords = records
+    .filter(r => r.watchedAt !== null)
+    .sort((a, b) => parseISO(a.watchedAt!).getTime() - parseISO(b.watchedAt!).getTime())
+
+  if (validRecords.length === 0) {
+    return {
+      sessions: [],
+      totalSessions: 0,
+      avgSessionLength: 0,
+      avgVideosPerSession: 0
+    }
+  }
+
+  // Define session break threshold (30 minutes)
+  const SESSION_BREAK_MINUTES = 30
+  const sessions: Array<{
+    id: string
+    startTime: string
+    endTime: string
+    videos: WatchRecord[]
+    duration: number
+    avgGapMinutes: number
+  }> = []
+
+  let currentSession: WatchRecord[] = [validRecords[0]]
+  
+  for (let i = 1; i < validRecords.length; i++) {
+    const currentTime = parseISO(validRecords[i].watchedAt!)
+    const lastTime = parseISO(validRecords[i - 1].watchedAt!)
+    const gapMinutes = differenceInMinutes(currentTime, lastTime)
+    
+    if (gapMinutes > SESSION_BREAK_MINUTES) {
+      // End current session and start new one
+      if (currentSession.length > 0) {
+        const sessionStart = parseISO(currentSession[0].watchedAt!)
+        const sessionEnd = parseISO(currentSession[currentSession.length - 1].watchedAt!)
+        const duration = differenceInMinutes(sessionEnd, sessionStart)
+        
+        // Calculate average gap between videos in session
+        let totalGap = 0
+        for (let j = 1; j < currentSession.length; j++) {
+          totalGap += differenceInMinutes(
+            parseISO(currentSession[j].watchedAt!),
+            parseISO(currentSession[j - 1].watchedAt!)
+          )
+        }
+        const avgGap = currentSession.length > 1 ? totalGap / (currentSession.length - 1) : 0
+        
+        sessions.push({
+          id: `session-${sessions.length + 1}`,
+          startTime: currentSession[0].watchedAt!,
+          endTime: currentSession[currentSession.length - 1].watchedAt!,
+          videos: [...currentSession],
+          duration,
+          avgGapMinutes: avgGap
+        })
+      }
+      
+      currentSession = [validRecords[i]]
+    } else {
+      currentSession.push(validRecords[i])
+    }
+  }
+  
+  // Add the final session
+  if (currentSession.length > 0) {
+    const sessionStart = parseISO(currentSession[0].watchedAt!)
+    const sessionEnd = parseISO(currentSession[currentSession.length - 1].watchedAt!)
+    const duration = differenceInMinutes(sessionEnd, sessionStart)
+    
+    let totalGap = 0
+    for (let j = 1; j < currentSession.length; j++) {
+      totalGap += differenceInMinutes(
+        parseISO(currentSession[j].watchedAt!),
+        parseISO(currentSession[j - 1].watchedAt!)
+      )
+    }
+    const avgGap = currentSession.length > 1 ? totalGap / (currentSession.length - 1) : 0
+    
+    sessions.push({
+      id: `session-${sessions.length + 1}`,
+      startTime: currentSession[0].watchedAt!,
+      endTime: currentSession[currentSession.length - 1].watchedAt!,
+      videos: [...currentSession],
+      duration,
+      avgGapMinutes: avgGap
+    })
+  }
+
+  // Calculate session statistics
+  const totalSessions = sessions.length
+  const avgSessionLength = sessions.length > 0 
+    ? sessions.reduce((sum, s) => sum + s.duration, 0) / sessions.length 
+    : 0
+  const avgVideosPerSession = sessions.length > 0
+    ? sessions.reduce((sum, s) => sum + s.videos.length, 0) / sessions.length
+    : 0
+
+  return {
+    sessions,
+    totalSessions,
+    avgSessionLength,
+    avgVideosPerSession
+  }
+}
+
+export function computeViewingPatterns(records: WatchRecord[]) {
+  const validRecords = records.filter(r => r.watchedAt !== null)
+  
+  if (validRecords.length === 0) {
+    return {
+      hourlyDistribution: [],
+      dailyDistribution: [],
+      weeklyDistribution: [],
+      monthlyDistribution: []
+    }
+  }
+
+  // Hourly distribution
+  const hourlyStats = Array(24).fill(0)
+  validRecords.forEach(record => {
+    if (record.hour !== null) {
+      hourlyStats[record.hour]++
+    }
+  })
+
+  const hourlyDistribution = hourlyStats.map((count, hour) => ({
+    hour,
+    count,
+    percentage: (count / validRecords.length) * 100
+  }))
+
+  // Daily distribution (0 = Sunday, 6 = Saturday)
+  const dailyStats = Array(7).fill(0)
+  validRecords.forEach(record => {
+    if (record.dayOfWeek !== null) {
+      dailyStats[record.dayOfWeek]++
+    }
+  })
+
+  const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+  const dailyDistribution = dailyStats.map((count, day) => ({
+    day: dayNames[day],
+    dayNum: day,
+    count,
+    percentage: (count / validRecords.length) * 100
+  }))
+
+  // Weekly patterns (by week of month)
+  const weeklyStats = Array(6).fill(0) // Up to 6 weeks in a month
+  validRecords.forEach(record => {
+    if (record.week !== null && record.week >= 1 && record.week <= 6) {
+      weeklyStats[record.week - 1]++
+    }
+  })
+
+  const weeklyDistribution = weeklyStats.map((count, week) => ({
+    week: week + 1,
+    count,
+    percentage: (count / validRecords.length) * 100
+  }))
+
+  // Monthly distribution
+  const monthlyStats = Array(12).fill(0)
+  validRecords.forEach(record => {
+    if (record.month !== null && record.month >= 1 && record.month <= 12) {
+      monthlyStats[record.month - 1]++
+    }
+  })
+
+  const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 
+                     'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+  const monthlyDistribution = monthlyStats.map((count, month) => ({
+    month: monthNames[month],
+    monthNum: month + 1,
+    count,
+    percentage: (count / validRecords.length) * 100
+  }))
+
+  return {
+    hourlyDistribution,
+    dailyDistribution,
+    weeklyDistribution,
+    monthlyDistribution
   }
 }

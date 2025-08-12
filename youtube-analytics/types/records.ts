@@ -115,6 +115,56 @@ export interface TopicCount {
   percentage: number
 }
 
+// Enhanced channel analysis types
+export interface EnhancedChannelMetrics {
+  channelTitle: string
+  channelUrl?: string
+  videoCount: number
+  totalWatchTime: number
+  averageVideosPerMonth: number
+  firstWatched: Date
+  lastWatched: Date
+  loyaltyScore: number // 0-100 based on consistency and frequency
+  topicsSpread: string[] // unique topics from this channel
+  viewingPattern: {
+    peakHour: number
+    peakDay: number
+    consistencyScore: number
+  }
+  discoveryMetrics: {
+    isNew: boolean // discovered in last 30 days
+    retentionRate: number // videos watched vs total channel uploads (estimated)
+    sessionFrequency: number // how often watched in viewing sessions
+  }
+  relatedChannels: string[] // channels often watched together
+}
+
+export interface ChannelRelationship {
+  channel1: string
+  channel2: string
+  coWatchScore: number // 0-100, how often watched together
+  topicOverlap: string[]
+  temporalCorrelation: number // timing correlation
+}
+
+export interface ChannelSession {
+  date: Date
+  channels: string[]
+  sessionDuration: number
+  videoCount: number
+  topicMix: string[]
+}
+
+export interface ChannelEvolution {
+  channelTitle: string
+  timelineData: Array<{
+    month: string
+    videoCount: number
+    topicDiversity: number
+    engagementTrend: 'up' | 'down' | 'stable'
+  }>
+}
+
 export interface AggregationResult {
   kpi: KPIMetrics
   monthlyTrend: MonthlyCount[]

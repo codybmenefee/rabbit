@@ -4,19 +4,19 @@ import { cva, type VariantProps } from "class-variance-authority"
 import { cn } from "@/lib/utils"
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center rounded-lg text-sm font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-purple-500/50 disabled:pointer-events-none disabled:opacity-50",
+  "inline-flex items-center justify-center rounded-md text-sm font-medium transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-signal-green-500/50 disabled:pointer-events-none disabled:opacity-50 terminal-text uppercase tracking-wide",
   {
     variants: {
       variant: {
-        default: "bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-lg shadow-purple-500/25 hover:from-purple-600 hover:to-pink-600 hover:shadow-purple-500/35",
+        default: "terminal-surface border-signal-green-600/50 text-signal-green-400 hover:text-signal-green-300 hover:border-signal-green-500/70 hover:shadow-lg hover:shadow-signal-green-500/20",
         destructive:
-          "bg-gradient-to-r from-red-500 to-red-600 text-white shadow-lg shadow-red-500/25 hover:from-red-600 hover:to-red-700",
+          "terminal-surface border-signal-red-600/50 text-signal-red-400 hover:text-signal-red-300 hover:border-signal-red-500/70 hover:shadow-lg hover:shadow-signal-red-500/20",
         outline:
-          "border border-glass-border bg-glass-subtle backdrop-blur-glass text-gray-300 hover:bg-glass-subtle-hover hover:border-glass-border-hover hover:text-white",
+          "border border-terminal-border bg-terminal-surface/50 backdrop-blur-xl text-terminal-text hover:border-terminal-border hover:bg-terminal-surface hover:text-terminal-text",
         secondary:
-          "bg-glass-subtle text-gray-300 hover:bg-glass-subtle-hover hover:text-white",
-        ghost: "text-gray-400 hover:bg-glass-subtle-hover hover:text-gray-300",
-        link: "text-purple-400 underline-offset-4 hover:underline hover:text-purple-300",
+          "bg-terminal-surface/50 text-terminal-muted hover:bg-terminal-surface hover:text-terminal-text",
+        ghost: "text-terminal-muted hover:bg-terminal-surface/30 hover:text-terminal-text",
+        link: "text-signal-orange-400 underline-offset-4 hover:underline hover:text-signal-orange-300",
       },
       size: {
         default: "h-10 px-4 py-2",

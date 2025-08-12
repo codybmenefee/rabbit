@@ -26,8 +26,9 @@ export function FileUpload({ onImportComplete, onImportStart, className }: FileU
     onImportStart()
 
     try {
-      if (!file.name.endsWith('.html')) {
-        throw new Error('Please upload a .html file (watch-history.html from Google Takeout)')
+      const isHtml = /\.html?$/i.test(file.name)
+      if (!isHtml) {
+        throw new Error('INVALID_FILE_FORMAT: .html required (watch-history.html from Google Takeout)')
       }
 
       const content = await file.text()
@@ -35,7 +36,7 @@ export function FileUpload({ onImportComplete, onImportStart, className }: FileU
       const records = parser.parseHTML(content)
 
       if (records.length === 0) {
-        throw new Error('No valid watch records found in the file. Please ensure this is a Google Takeout watch-history.html file.')
+        throw new Error('NO_VALID_DATA_STREAMS: Ensure file is Google Takeout watch-history.html format')
       }
 
       const summary = parser.generateSummary(records)
@@ -100,10 +101,10 @@ export function FileUpload({ onImportComplete, onImportStart, className }: FileU
     <div className={className}>
       <Card
         className={cn(
-          "relative border-2 border-dashed p-8 text-center transition-all duration-200 cursor-pointer",
+          "relative border-2 border-dashed p-8 text-center transition-all duration-300 cursor-pointer",
           isDragging 
-            ? "border-purple-400/60 bg-purple-500/10 scale-105 shadow-lg shadow-purple-500/20" 
-            : "border-white/[0.08] hover:border-purple-400/40 hover:bg-purple-500/5",
+            ? "border-signal-green-400/60 bg-signal-green-500/10 scale-105 shadow-lg shadow-signal-green-500/20" 
+            : "border-terminal-border hover:border-signal-green-400/40 hover:bg-signal-green-500/5",
           isProcessing && "opacity-50 pointer-events-none"
         )}
         onDragEnter={handleDragIn}
@@ -119,7 +120,7 @@ export function FileUpload({ onImportComplete, onImportStart, className }: FileU
             handleClick()
           }
         }}
-        aria-label="Upload YouTube watch history file"
+        aria-label="Initialize data stream upload"
       >
         <input
           ref={fileInputRef}
@@ -139,31 +140,31 @@ export function FileUpload({ onImportComplete, onImportStart, className }: FileU
               aria-live="polite"
               aria-label="Processing file"
             >
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-500" aria-hidden="true"></div>
-              <p className="text-purple-400 font-medium">Processing your YouTube history...</p>
-              <p className="text-gray-400 text-sm">This may take a few moments for large files</p>
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-signal-green-500" aria-hidden="true"></div>
+              <p className="text-signal-green-400 font-medium terminal-text">PROCESSING_DATA_STREAM...</p>
+              <p className="text-terminal-muted text-sm terminal-text">PARSING_LARGE_DATA_SET</p>
             </div>
           ) : (
             <>
               <div className="flex justify-center">
-                <div className="p-3 bg-purple-500/10 rounded-full">
-                  <Upload className="h-8 w-8 text-purple-400" />
+                <div className="p-3 terminal-surface rounded-lg">
+                  <Upload className="h-8 w-8 signal-green" />
                 </div>
               </div>
 
               <div className="space-y-2">
-                <h2 className="text-lg font-medium text-white">
-                  Upload Your YouTube History
+                <h2 className="text-lg font-medium text-terminal-text terminal-text">
+                  INITIALIZE_DATA_STREAM
                 </h2>
-                <p id="file-upload-description" className="text-gray-400 text-sm max-w-md mx-auto">
-                  Drag and drop your <strong>watch-history.html</strong> file from Google Takeout, 
-                  or click to browse and select the file.
+                <p id="file-upload-description" className="text-terminal-muted text-sm max-w-md mx-auto terminal-text">
+                  Drop <strong>watch-history.html</strong> from Google Takeout, 
+                  or click to select file for processing.
                 </p>
               </div>
 
-              <div className="flex items-center justify-center space-x-2 text-xs text-gray-500">
+              <div className="flex items-center justify-center space-x-2 text-xs text-terminal-muted terminal-text">
                 <FileText className="h-4 w-4" />
-                <span>Supports: watch-history.html</span>
+                <span>ACCEPTS: watch-history.html</span>
               </div>
             </>
           )}
@@ -171,36 +172,36 @@ export function FileUpload({ onImportComplete, onImportStart, className }: FileU
 
         {error && (
           <div 
-            className="mt-4 p-4 bg-red-500/10 border border-red-500/20 rounded-lg"
+            className="mt-4 p-4 bg-signal-red-500/10 border border-signal-red-500/20 rounded-lg"
             role="alert"
             aria-live="assertive"
           >
-            <div className="flex items-center space-x-2 text-red-400">
+            <div className="flex items-center space-x-2 signal-red">
               <AlertCircle className="h-5 w-5 flex-shrink-0" aria-hidden="true" />
-              <p className="text-sm font-medium">Import Failed</p>
+              <p className="text-sm font-medium terminal-text">IMPORT_FAILED</p>
             </div>
-            <p className="text-red-300 text-sm mt-1">{error}</p>
+            <p className="signal-red text-sm mt-1 terminal-text">{error}</p>
           </div>
         )}
       </Card>
 
-      <div className="mt-6 space-y-3 text-sm text-gray-400">
+      <div className="mt-6 space-y-3 text-sm text-terminal-muted terminal-text">
         <div className="flex items-start space-x-2">
-          <CheckCircle className="h-4 w-4 text-green-400 mt-0.5 flex-shrink-0" />
+          <CheckCircle className="h-4 w-4 signal-green mt-0.5 flex-shrink-0" />
           <div>
-            <p className="font-medium">Your data stays private</p>
-            <p className="text-gray-500">All processing happens locally in your browser. No data is sent to any server.</p>
+            <p className="font-medium">LOCAL_PROCESSING_ONLY</p>
+            <p className="text-terminal-muted">All processing happens locally. No data transmission to external servers.</p>
           </div>
         </div>
 
         <div className="flex items-start space-x-2">
-          <FileText className="h-4 w-4 text-blue-400 mt-0.5 flex-shrink-0" />
+          <FileText className="h-4 w-4 signal-orange mt-0.5 flex-shrink-0" />
           <div>
-            <p className="font-medium">How to get your data</p>
-            <p className="text-gray-500">
-              Visit <a href="https://takeout.google.com" target="_blank" rel="noopener noreferrer" 
-              className="text-blue-400 hover:text-blue-300 underline">Google Takeout</a>, 
-              select YouTube and YouTube Music, and download your archive.
+            <p className="font-medium">DATA_ACQUISITION_PROTOCOL</p>
+            <p className="text-terminal-muted">
+              Access <a href="https://takeout.google.com" target="_blank" rel="noopener noreferrer" 
+              className="signal-orange hover:text-signal-orange-300 underline">Google Takeout</a>, 
+              select YouTube and YouTube Music, download archive.
             </p>
           </div>
         </div>

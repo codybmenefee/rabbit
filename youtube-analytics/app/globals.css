@@ -2,25 +2,80 @@
 @tailwind components;
 @tailwind utilities;
 
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+
+* {
+  box-sizing: border-box;
+}
 
 body {
-  background: linear-gradient(135deg, #0A0A0B 0%, #111113 100%);
+  background: linear-gradient(135deg, #0a0a0a 0%, #111111 100%);
   min-height: 100vh;
-  color: white;
+  color: #e5e5e5;
+  font-family: 'Inter', system-ui, sans-serif;
+  font-feature-settings: 'cv11', 'ss01';
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-.glass-card {
-  background: linear-gradient(145deg, rgba(17, 17, 19, 0.3) 0%, rgba(10, 10, 11, 0.4) 100%);
-  backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 8px;
+.terminal-surface {
+  background: linear-gradient(145deg, rgba(17, 17, 17, 0.9) 0%, rgba(10, 10, 10, 0.95) 100%);
+  backdrop-filter: blur(20px);
+  border: 1px solid #1a1a1a;
+  box-shadow: 
+    inset 0 1px 0 rgba(255, 255, 255, 0.03),
+    0 4px 12px rgba(0, 0, 0, 0.8),
+    0 1px 3px rgba(0, 0, 0, 0.9);
 }
 
-.gradient-text {
-  background: linear-gradient(to right, #8B5CF6, #A855F7, #EC4899);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+.signal-gradient {
+  background: linear-gradient(135deg, 
+    rgba(56, 161, 105, 0.2) 0%,
+    rgba(237, 137, 54, 0.2) 50%,
+    rgba(229, 62, 62, 0.2) 100%
+  );
+}
+
+.terminal-text {
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 500;
+  letter-spacing: -0.025em;
+}
+
+.data-metric {
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.05em;
+}
+
+.signal-green {
+  color: #38a169;
+}
+
+.signal-orange {
+  color: #ed8936;
+}
+
+.signal-red {
+  color: #e53e3e;
+}
+
+.signal-green-glow {
+  color: #38a169;
+  text-shadow: 0 0 8px rgba(56, 161, 105, 0.3);
+}
+
+.signal-orange-glow {
+  color: #ed8936;
+  text-shadow: 0 0 8px rgba(237, 137, 54, 0.3);
+}
+
+.signal-red-glow {
+  color: #e53e3e;
+  text-shadow: 0 0 8px rgba(229, 62, 62, 0.3);
 }
 
 /* Enhanced focus styles for better accessibility */

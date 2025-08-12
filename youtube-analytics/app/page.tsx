@@ -1,52 +1,111 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Upload, FileText, BarChart3, TrendingUp, Users, Clock, ArrowUpRight, ArrowDownRight } from 'lucide-react'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Upload, FileText, BarChart3 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
-import { ChartContainer } from '@/components/ui/chart-container'
 import { ImportPage } from '@/components/import/ImportPage'
 import { ImportErrorBoundary } from '@/components/import/ErrorBoundary'
+import { MainDashboard } from '@/components/dashboard/main-dashboard'
 import { watchHistoryStorage } from '@/lib/storage'
+import { generateDemoData } from '@/lib/demo-data'
+import { WatchRecord } from '@/types/records'
 
 // State management for real data
 type AppState = 'empty' | 'import' | 'populated'
 
 export default function Home() {
   const [appState, setAppState] = useState<AppState>('empty')
+  const [isLoadingDemo, setIsLoadingDemo] = useState(false)
+  const [watchRecords, setWatchRecords] = useState<WatchRecord[]>([])
+  const [isLoadingData, setIsLoadingData] = useState(true)
 
-  // Check if data exists on mount
+  // Check if data exists on mount and load it
   useEffect(() => {
-    const checkExistingData = async () => {
-      const hasData = await watchHistoryStorage.hasData()
-      if (hasData) {
-        setAppState('populated')
+    const loadExistingData = async () => {
+      try {
+        const hasData = await watchHistoryStorage.hasData()
+        
+        if (hasData) {
+          const records = await watchHistoryStorage.getRecords()
+          setWatchRecords(records)
+          setAppState('populated')
+        }
+      } catch (error) {
+        console.error('Failed to load existing data:', error)
+      } finally {
+        setIsLoadingData(false)
       }
     }
-    checkExistingData()
+    loadExistingData()
   }, [])
 
   const handleUpload = () => {
     setAppState('import')
   }
 
-  const handleImportComplete = () => {
-    setAppState('populated')
+  const handleImportComplete = async () => {
+    // Reload the data after import
+    try {
+      const records = await watchHistoryStorage.getRecords()
+      setWatchRecords(records)
+      setAppState('populated')
+    } catch (error) {
+      console.error('Failed to load imported data:', error)
+    }
+  }
+
+  const handleLoadDemo = async () => {
+    setIsLoadingDemo(true)
+    try {
+      const { records, summary } = generateDemoData()
+      const metadata = {
+        importedAt: new Date().toISOString(),
+        fileName: 'demo-data.json',
+        fileSize: JSON.stringify(records).length
+      }
+      
+      await watchHistoryStorage.saveRecords(records, metadata, summary)
+      setWatchRecords(records)
+      setAppState('populated')
+    } catch (error) {
+      console.error('Failed to load demo data:', error)
+    } finally {
+      setIsLoadingDemo(false)
+    }
   }
 
   const resetState = async () => {
     await watchHistoryStorage.clearAll()
+    setWatchRecords([])
     setAppState('empty')
   }
 
+  const handleNewImport = () => {
+    setAppState('import')
+  }
+
+  if (isLoadingData) {
+    return (
+      <div className="min-h-screen bg-terminal-bg flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-signal-green-500 mx-auto mb-4"></div>
+          <p className="text-terminal-muted terminal-text">LOADING_DATA_STREAM...</p>
+        </div>
+      </div>
+    )
+  }
+
   if (appState === 'empty') {
-    return <EmptyState onUpload={handleUpload} />
+    return (
+      <div className="min-h-screen bg-terminal-bg">
+        <EmptyState onUpload={handleUpload} onLoadDemo={handleLoadDemo} isLoadingDemo={isLoadingDemo} />
+      </div>
+    )
   }
 
   if (appState === 'import') {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-purple-900/20 to-gray-900 p-6">
+      <div className="min-h-screen bg-terminal-bg p-6">
         <ImportErrorBoundary>
           <ImportPage onImportComplete={handleImportComplete} />
         </ImportErrorBoundary>
@@ -54,21 +113,63 @@ export default function Home() {
     )
   }
 
-  return <PopulatedState onReset={resetState} />
+  return (
+    <div className="min-h-screen bg-terminal-bg">
+      <div className="p-6">
+        <div className="max-w-7xl mx-auto">
+          {/* Header with actions */}
+          <div className="mb-6 flex justify-between items-center">
+            <div>
+              <h1 className="text-2xl font-bold text-terminal-text terminal-text">RABBIT.ANALYTICS</h1>
+              <p className="text-terminal-muted text-sm mt-1 terminal-text">
+                ANALYZING {watchRecords.length.toLocaleString()} DATA_POINTS
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" onClick={handleNewImport}>
+                <Upload className="w-4 h-4 mr-2" />
+                IMPORT_NEW_DATA
+              </Button>
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                className="text-signal-red-400 hover:text-signal-red-300 hover:bg-signal-red-500/10" 
+                onClick={resetState}
+              >
+                <FileText className="w-4 h-4 mr-2" />
+                CLEAR_ALL_DATA
+              </Button>
+            </div>
+          </div>
+
+          {/* Main Dashboard */}
+          <MainDashboard data={watchRecords} />
+        </div>
+      </div>
+    </div>
+  )
 }
 
-function EmptyState({ onUpload }: { onUpload: () => void }) {
+function EmptyState({ 
+  onUpload, 
+  onLoadDemo, 
+  isLoadingDemo 
+}: { 
+  onUpload: () => void
+  onLoadDemo: () => void
+  isLoadingDemo: boolean
+}) {
   return (
     <div className="flex items-center justify-center min-h-[calc(100vh-4rem)] p-6">
       <div className="max-w-md w-full space-y-8 text-center">
         <div className="space-y-4">
-          <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-purple-500/20 to-pink-500/20 border border-purple-500/30 flex items-center justify-center mx-auto">
-            <Upload className="w-8 h-8 text-purple-400" />
+          <div className="w-20 h-20 rounded-lg terminal-surface border-terminal-border flex items-center justify-center mx-auto">
+            <Upload className="w-8 h-8 signal-green" />
           </div>
           <div className="space-y-2">
-            <h2 className="text-2xl font-semibold text-white">Import Your YouTube Data</h2>
+            <h2 className="text-2xl font-semibold text-terminal-text terminal-text">INITIALIZE_DATA_STREAM</h2>
             <p className="text-gray-400 text-sm leading-relaxed">
-              Upload your Google Takeout watch history to unlock powerful insights about your YouTube viewing patterns, favorite creators, and content trends.
+              Upload Google Takeout watch history to initialize comprehensive analytics pipeline. Analyze viewing patterns, creator networks, and content trends.
             </p>
           </div>
         </div>
@@ -76,149 +177,49 @@ function EmptyState({ onUpload }: { onUpload: () => void }) {
         <div className="space-y-4">
           <Button onClick={onUpload} size="lg" className="w-full">
             <Upload className="w-4 h-4 mr-2" />
-            Upload Watch History
+INITIALIZE_STREAM
+          </Button>
+
+          <div className="relative">
+            <div className="absolute inset-0 flex items-center">
+              <span className="w-full border-t border-gray-600" />
+            </div>
+            <div className="relative flex justify-center text-xs uppercase">
+              <span className="bg-gray-900 px-2 text-gray-400">Or</span>
+            </div>
+          </div>
+
+          <Button 
+            onClick={onLoadDemo} 
+            size="lg" 
+            variant="outline" 
+            className="w-full"
+            disabled={isLoadingDemo}
+          >
+            {isLoadingDemo ? (
+              <>
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-signal-green-500 mr-2" />
+                GENERATING_DEMO_STREAM...
+              </>
+            ) : (
+              <>
+                <BarChart3 className="w-4 h-4 mr-2" />
+LOAD_DEMO_DATA
+              </>
+            )}
           </Button>
           
           <div className="flex items-center gap-4 text-xs text-gray-500">
             <div className="flex items-center gap-2">
               <FileText className="w-3 h-3" />
-              <span>Supports .html & .zip files</span>
+              <span>SUPPORTS_HTML_FORMAT</span>
             </div>
             <div className="flex items-center gap-2">
               <span className="w-1 h-1 rounded-full bg-gray-600"></span>
-              <span>Local processing only</span>
+              <span>LOCAL_PROCESSING_ONLY</span>
             </div>
           </div>
         </div>
-      </div>
-    </div>
-  )
-}
-
-
-function PopulatedState({ onReset }: { onReset: () => void }) {
-  return (
-    <div className="p-6 space-y-6">
-      {/* Quick Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium text-gray-400 flex items-center gap-2">
-              <TrendingUp className="w-4 h-4" />
-              Videos Watched (YTD)
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="pt-0">
-            <div className="text-2xl font-bold text-white">1,247</div>
-            <div className="flex items-center text-sm text-emerald-400 mt-1">
-              <ArrowUpRight className="w-3 h-3 mr-1" />
-              +23.1% vs last year
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium text-gray-400 flex items-center gap-2">
-              <Users className="w-4 h-4" />
-              Unique Channels
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="pt-0">
-            <div className="text-2xl font-bold text-white">89</div>
-            <div className="flex items-center text-sm text-red-400 mt-1">
-              <ArrowDownRight className="w-3 h-3 mr-1" />
-              -5.2% vs last year
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium text-gray-400 flex items-center gap-2">
-              <Clock className="w-4 h-4" />
-              Avg. Daily Videos
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="pt-0">
-            <div className="text-2xl font-bold text-white">12.4</div>
-            <div className="flex items-center text-sm text-emerald-400 mt-1">
-              <ArrowUpRight className="w-3 h-3 mr-1" />
-              +8.7% vs last year
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium text-gray-400 flex items-center gap-2">
-              <BarChart3 className="w-4 h-4" />
-              Top Category
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="pt-0">
-            <div className="text-lg font-semibold text-white">Technology</div>
-            <div className="text-sm text-gray-400 mt-1">34% of total views</div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Charts Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <ChartContainer 
-          title="Monthly Viewing Trend"
-          subtitle="Videos watched per month"
-        >
-          <div className="h-80 flex items-center justify-center text-gray-400">
-            Chart placeholder - Monthly trend line chart
-          </div>
-        </ChartContainer>
-
-        <ChartContainer 
-          title="Top Channels"
-          subtitle="Most watched creators this year"
-        >
-          <div className="h-80 flex items-center justify-center text-gray-400">
-            Chart placeholder - Horizontal bar chart
-          </div>
-        </ChartContainer>
-      </div>
-
-      {/* Topics and Activity */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <Card className="lg:col-span-2">
-          <CardHeader>
-            <CardTitle className="text-lg text-white">Content Topics</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex flex-wrap gap-2">
-              <Badge>Technology</Badge>
-              <Badge variant="secondary">Education</Badge>
-              <Badge variant="secondary">Gaming</Badge>
-              <Badge variant="secondary">Music</Badge>
-              <Badge variant="secondary">Science</Badge>
-              <Badge variant="secondary">Programming</Badge>
-              <Badge variant="secondary">AI & ML</Badge>
-              <Badge variant="secondary">Design</Badge>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg text-white">Quick Actions</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <Button variant="outline" size="sm" className="w-full justify-start">
-              <Upload className="w-4 h-4 mr-2" />
-              Import New Data
-            </Button>
-            <Button variant="ghost" size="sm" className="w-full justify-start" onClick={onReset}>
-              <FileText className="w-4 h-4 mr-2" />
-              Clear All Data
-            </Button>
-          </CardContent>
-        </Card>
       </div>
     </div>
   )

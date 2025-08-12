@@ -81,10 +81,10 @@ export function MainDashboard({ data }: MainDashboardProps) {
 
   if (data.length === 0) {
     return (
-      <div className="flex items-center justify-center min-h-[400px] text-muted-foreground">
-        <div className="text-center space-y-2">
-          <div className="text-lg font-medium">No data available</div>
-          <div className="text-sm">Upload your YouTube watch history to see insights</div>
+      <div className="flex items-center justify-center min-h-[400px] text-terminal-muted">
+        <div className="text-center space-y-2 terminal-text">
+          <div className="text-lg font-medium">NO_DATA_STREAM_AVAILABLE</div>
+          <div className="text-sm">INITIALIZE_WATCH_HISTORY_PIPELINE</div>
         </div>
       </div>
     )
