@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
+import Link from 'next/link'
 import { WatchRecord } from '@/types/records'
 import { watchHistoryStorage } from '@/lib/storage'
 import { AnalyticsDashboard } from '@/components/analytics/analytics-dashboard'
@@ -59,12 +60,12 @@ export default function AnalyticsPage() {
           <p className="text-terminal-muted terminal-text mb-6">
             Initialize data stream from main dashboard to access advanced analytics.
           </p>
-          <a 
+          <Link 
             href="/"
             className="inline-flex items-center px-4 py-2 bg-signal-green-600 text-terminal-bg rounded-lg hover:bg-signal-green-500 transition-colors terminal-text"
           >
             RETURN_TO_DASHBOARD
-          </a>
+          </Link>
         </div>
       </div>
     )

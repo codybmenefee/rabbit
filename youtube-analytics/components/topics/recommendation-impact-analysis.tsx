@@ -4,7 +4,7 @@ import { motion } from 'framer-motion'
 import { PieChart, Pie, Cell, RadialBarChart, RadialBar, ResponsiveContainer, Legend, Tooltip } from 'recharts'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { AlertTriangle, Zap, Eye, Shield, Network, Algorithm } from 'lucide-react'
+import { AlertTriangle, Zap, Eye, Shield, Network, Cpu } from 'lucide-react'
 import { TopicRecommendationImpact } from '@/lib/topic-aggregations'
 
 interface RecommendationImpactAnalysisProps {
@@ -65,7 +65,7 @@ export function RecommendationImpactAnalysis({ data }: RecommendationImpactAnaly
       case 'high': return <AlertTriangle className="w-4 h-4" />
       case 'medium': return <Eye className="w-4 h-4" />
       case 'low': return <Shield className="w-4 h-4" />
-      default: return <Algorithm className="w-4 h-4" />
+      default: return <Cpu className="w-4 h-4" />
     }
   }
 
@@ -90,8 +90,8 @@ export function RecommendationImpactAnalysis({ data }: RecommendationImpactAnaly
       <Card className="border-white/5 bg-black/40 backdrop-blur-xl">
         <CardHeader>
           <CardTitle className="text-xl font-semibold text-white flex items-center gap-2">
-            <Algorithm className="w-5 h-5" />
-            Algorithm Impact Analysis
+            <Cpu className="w-5 h-5" />
+            Cpu Impact Analysis
           </CardTitle>
           <p className="text-sm text-muted-foreground">
             How recommendations influence your content consumption
@@ -99,7 +99,7 @@ export function RecommendationImpactAnalysis({ data }: RecommendationImpactAnaly
         </CardHeader>
 
         <CardContent className="space-y-6">
-          {/* Overall Algorithm Influence */}
+          {/* Overall Cpu Influence */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <motion.div
               initial={{ scale: 0, opacity: 0 }}
@@ -109,7 +109,7 @@ export function RecommendationImpactAnalysis({ data }: RecommendationImpactAnaly
             >
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-purple-200">Algorithm Influence</p>
+                  <p className="text-sm font-medium text-purple-200">Cpu Influence</p>
                   <p className={`text-2xl font-bold ${getInfluenceColor(overallInfluence.level)}`}>
                     {overallInfluence.level.toUpperCase()}
                   </p>
@@ -230,8 +230,8 @@ export function RecommendationImpactAnalysis({ data }: RecommendationImpactAnaly
           {/* Detailed Topic Breakdown */}
           <div className="space-y-3">
             <h4 className="text-lg font-semibold text-white flex items-center gap-2">
-              <Algorithm className="w-5 h-5" />
-              Algorithm Impact by Topic
+              <Cpu className="w-5 h-5" />
+              Cpu Impact by Topic
             </h4>
             
             {topTopics.map((topic, index) => (
@@ -296,7 +296,7 @@ export function RecommendationImpactAnalysis({ data }: RecommendationImpactAnaly
                   </div>
                 </div>
 
-                {/* Algorithm Influence Progress Bar */}
+                {/* Cpu Influence Progress Bar */}
                 <div className="mt-3 flex gap-1">
                   <div 
                     className="h-2 bg-red-400 rounded-l-full"

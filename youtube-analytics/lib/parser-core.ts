@@ -148,9 +148,21 @@ export class YouTubeHistoryParserCore {
   }
 
   private parseChunk(chunk: string, isFirstChunk: boolean): WatchRecord[] {
-    const parser = new DOMParser()
-    const doc = parser.parseFromString(chunk, 'text/html')
+    // Use DOMParser if available (main thread), otherwise fall back to regex parsing
+    let doc: Document | null = null
+    
+    if (typeof DOMParser !== 'undefined') {
+      const parser = new DOMParser()
+      doc = parser.parseFromString(chunk, 'text/html')
+    }
     const records: WatchRecord[] = []
+
+    // If DOMParser is not available (worker context), use regex fallback
+    if (!doc) {
+      const fallbackRecords = this.parseWithRegexFallback(chunk)
+      records.push(...fallbackRecords)
+      return records
+    }
 
     // Primary: Google Takeout classic structure
     const contentCells: Element[] = Array.from(

@@ -1,12 +1,13 @@
 {
-  "name": "youtube-analytics",
+  "name": "youtube-analytics-platform",
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "type-check": "tsc --noEmit"
   },
   "keywords": [],
   "author": "",

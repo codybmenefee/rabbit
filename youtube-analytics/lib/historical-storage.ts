@@ -1,4 +1,4 @@
-import { put, head } from '@vercel/blob'
+import { head } from '@vercel/blob'
 import { WatchRecord, ImportSummary } from '@/types/records'
 
 export interface HistoricalUploadMetadata {
@@ -70,22 +70,57 @@ export class HistoricalStorage {
   }
 
   private async uploadBlob(path: string, data: any): Promise<string> {
-    const compressed = JSON.stringify(data)
-    const blob = await put(path, compressed, {
-      access: 'private',
-      contentType: 'application/json'
+    const response = await fetch('/api/blob/upload', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ path, data })
     })
-    return blob.url
+
+    if (!response.ok) {
+      const error = await response.text()
+      throw new Error(`Upload failed: ${error}`)
+    }
+
+    const result = await response.json()
+    return result.url
   }
 
-  private async downloadBlob<T>(url: string): Promise<T | null> {
+  private async downloadBlob<T>(apiUrl: string): Promise<T | null> {
     try {
-      const response = await fetch(url)
-      if (!response.ok) return null
-      const data = await response.text()
-      return JSON.parse(data) as T
+      console.log('Fetching blob URL from API:', apiUrl)
+      
+      // First, get the blob URL from our API
+      const apiResponse = await fetch(apiUrl)
+      if (!apiResponse.ok) {
+        console.warn(`Failed to get blob URL: ${apiResponse.status} ${apiResponse.statusText}`)
+        return null
+      }
+      
+      const apiData = await apiResponse.json()
+      const blobUrl = apiData.url
+      
+      if (!blobUrl) {
+        console.warn('No blob URL returned from API')
+        return null
+      }
+      
+      console.log('Downloading blob data from:', blobUrl)
+      
+      // Now fetch the actual blob content
+      const blobResponse = await fetch(blobUrl)
+      if (!blobResponse.ok) {
+        console.warn(`Failed to download blob: ${blobResponse.status} ${blobResponse.statusText}`)
+        return null
+      }
+      
+      const data = await blobResponse.text()
+      const parsed = JSON.parse(data) as T
+      console.log('Successfully downloaded and parsed blob data')
+      return parsed
     } catch (error) {
-      console.warn('Failed to download blob:', error)
+      console.error('Failed to download blob:', error)
       return null
     }
   }
@@ -107,6 +142,7 @@ export class HistoricalStorage {
     metadata: HistoricalUploadMetadata,
     summary: ImportSummary
   ): Promise<void> {
+    console.log(`Starting saveUpload for ${newRecords.length} records`)
     try {
       // 1. Save individual upload for audit purposes
       const uploadPath = this.getBlobPath(`uploads/${metadata.uploadedAt}.json`)
@@ -144,9 +180,12 @@ export class HistoricalStorage {
       await this.uploadBlob(masterPath, updatedMasterData)
 
       // 6. Precompute and save aggregations
+      console.log(`Computing aggregations for ${mergedRecords.length} total records`)
       const aggregations = this.computeAggregations(mergedRecords)
+      console.log('Computed aggregations:', aggregations)
       const aggregationsPath = this.getBlobPath('aggregations.json')
       await this.uploadBlob(aggregationsPath, aggregations)
+      console.log('Successfully saved aggregations to blob storage')
 
     } catch (error) {
       console.error('Failed to save upload to historical storage:', error)

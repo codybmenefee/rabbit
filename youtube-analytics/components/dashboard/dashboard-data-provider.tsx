@@ -65,6 +65,7 @@ export function DashboardDataProvider({ className }: DashboardDataProviderProps)
         try {
           // Check if we have any historical data
           const aggregations = await historicalStorage.getPrecomputedAggregations()
+          console.log('Aggregations data:', aggregations)
           
           if (aggregations && aggregations.totalRecords > 0) {
             // Load all historical data for dashboard
