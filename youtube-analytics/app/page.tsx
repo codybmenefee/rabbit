@@ -1,11 +1,12 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useSession } from 'next-auth/react'
 import { Upload, FileText, BarChart3 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { ImportPage } from '@/components/import/ImportPage'
 import { ImportErrorBoundary } from '@/components/import/ErrorBoundary'
-import { MainDashboard } from '@/components/dashboard/main-dashboard'
+import { DashboardDataProvider } from '@/components/dashboard/dashboard-data-provider'
 import { watchHistoryStorage } from '@/lib/storage'
 import { generateDemoData } from '@/lib/demo-data'
 import { WatchRecord } from '@/types/records'
@@ -14,44 +15,42 @@ import { WatchRecord } from '@/types/records'
 type AppState = 'empty' | 'import' | 'populated'
 
 export default function Home() {
+  const { status } = useSession()
   const [appState, setAppState] = useState<AppState>('empty')
   const [isLoadingDemo, setIsLoadingDemo] = useState(false)
-  const [watchRecords, setWatchRecords] = useState<WatchRecord[]>([])
   const [isLoadingData, setIsLoadingData] = useState(true)
 
   // Check if data exists on mount and load it
   useEffect(() => {
     const loadExistingData = async () => {
       try {
+        // Only check session storage for initial state detection
+        // DashboardDataProvider will handle full data loading
         const hasData = await watchHistoryStorage.hasData()
         
         if (hasData) {
-          const records = await watchHistoryStorage.getRecords()
-          setWatchRecords(records)
           setAppState('populated')
         }
       } catch (error) {
-        console.error('Failed to load existing data:', error)
+        console.error('Failed to check existing data:', error)
       } finally {
         setIsLoadingData(false)
       }
     }
-    loadExistingData()
-  }, [])
+    
+    if (status !== 'loading') {
+      loadExistingData()
+    }
+  }, [status])
 
   const handleUpload = () => {
     setAppState('import')
   }
 
   const handleImportComplete = async () => {
-    // Reload the data after import
-    try {
-      const records = await watchHistoryStorage.getRecords()
-      setWatchRecords(records)
-      setAppState('populated')
-    } catch (error) {
-      console.error('Failed to load imported data:', error)
-    }
+    // Just transition to populated state
+    // DashboardDataProvider will handle data loading
+    setAppState('populated')
   }
 
   const handleLoadDemo = async () => {
@@ -65,7 +64,6 @@ export default function Home() {
       }
       
       await watchHistoryStorage.saveRecords(records, metadata, summary)
-      setWatchRecords(records)
       setAppState('populated')
     } catch (error) {
       console.error('Failed to load demo data:', error)
@@ -76,7 +74,6 @@ export default function Home() {
 
   const resetState = async () => {
     await watchHistoryStorage.clearAll()
-    setWatchRecords([])
     setAppState('empty')
   }
 
@@ -122,7 +119,7 @@ export default function Home() {
             <div>
               <h1 className="text-2xl font-bold text-terminal-text terminal-text">RABBIT.ANALYTICS</h1>
               <p className="text-terminal-muted text-sm mt-1 terminal-text">
-                ANALYZING {watchRecords.length.toLocaleString()} DATA_POINTS
+                INTELLIGENT_YOUTUBE_ANALYTICS_PLATFORM
               </p>
             </div>
             <div className="flex gap-2">
@@ -142,8 +139,8 @@ export default function Home() {
             </div>
           </div>
 
-          {/* Main Dashboard */}
-          <MainDashboard data={watchRecords} />
+          {/* Main Dashboard with Data Provider */}
+          <DashboardDataProvider />
         </div>
       </div>
     </div>

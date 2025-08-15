@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { Calendar, Filter, RefreshCw, Download } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Select } from '@/components/ui/select'
+import { LoginButton } from '@/components/auth/login-button'
 
 const timeframeOptions = [
   { value: 'mtd', label: 'Month to Date' },
@@ -104,6 +105,12 @@ export function Topbar({
         >
           <Download className="w-4 h-4" />
         </button>
+
+        {/* Divider */}
+        <div className="w-px h-8 bg-white/[0.08]" />
+
+        {/* Authentication */}
+        <LoginButton />
       </div>
     </div>
   )

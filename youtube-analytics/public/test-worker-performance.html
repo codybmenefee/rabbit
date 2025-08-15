@@ -1,0 +1,577 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Web Worker Performance Test</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
+        }
+        
+        .container {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 8px 32px rgba(31, 38, 135, 0.37);
+            border: 1px solid rgba(255, 255, 255, 0.18);
+        }
+        
+        h1 {
+            text-align: center;
+            color: #4a5568;
+            margin-bottom: 30px;
+        }
+        
+        .test-controls {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 30px;
+            flex-wrap: wrap;
+        }
+        
+        .input-group {
+            flex: 1;
+            min-width: 200px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+            color: #4a5568;
+        }
+        
+        input, select, button {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e2e8f0;
+            border-radius: 10px;
+            font-size: 14px;
+            transition: all 0.3s ease;
+        }
+        
+        input:focus, select:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+        
+        button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            cursor: pointer;
+            font-weight: 600;
+            min-width: 150px;
+        }
+        
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+        }
+        
+        button:disabled {
+            background: #a0aec0;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+        
+        .progress-container {
+            margin: 20px 0;
+            display: none;
+        }
+        
+        .progress-bar {
+            width: 100%;
+            height: 20px;
+            background: #e2e8f0;
+            border-radius: 10px;
+            overflow: hidden;
+            position: relative;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+            width: 0%;
+            transition: width 0.3s ease;
+            border-radius: 10px;
+        }
+        
+        .progress-text {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 12px;
+            font-weight: 600;
+            color: #4a5568;
+            z-index: 1;
+        }
+        
+        .results {
+            display: none;
+            margin-top: 30px;
+        }
+        
+        .metric-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin: 20px 0;
+        }
+        
+        .metric-card {
+            background: rgba(255, 255, 255, 0.6);
+            backdrop-filter: blur(5px);
+            border-radius: 15px;
+            padding: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+        }
+        
+        .metric-value {
+            font-size: 2em;
+            font-weight: bold;
+            color: #667eea;
+            margin-bottom: 5px;
+        }
+        
+        .metric-label {
+            font-size: 0.9em;
+            color: #718096;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .status-indicator {
+            padding: 5px 10px;
+            border-radius: 5px;
+            font-size: 0.8em;
+            font-weight: 600;
+            margin-left: 10px;
+        }
+        
+        .status-pass {
+            background: #c6f6d5;
+            color: #2f855a;
+        }
+        
+        .status-warn {
+            background: #fed7aa;
+            color: #c05621;
+        }
+        
+        .status-fail {
+            background: #fed7d7;
+            color: #c53030;
+        }
+        
+        .log {
+            background: #2d3748;
+            color: #e2e8f0;
+            padding: 15px;
+            border-radius: 10px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            max-height: 300px;
+            overflow-y: auto;
+            margin-top: 20px;
+        }
+        
+        .error {
+            color: #fc8181;
+            background: rgba(254, 178, 178, 0.1);
+            padding: 15px;
+            border-radius: 10px;
+            margin: 15px 0;
+            border-left: 4px solid #fc8181;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔬 Web Worker Performance Test</h1>
+        
+        <div class="test-controls">
+            <div class="input-group">
+                <label for="recordCount">Number of Records:</label>
+                <select id="recordCount">
+                    <option value="1000">1,000 records</option>
+                    <option value="5000">5,000 records</option>
+                    <option value="10000" selected>10,000 records</option>
+                    <option value="25000">25,000 records</option>
+                    <option value="50000">50,000 records</option>
+                </select>
+            </div>
+            
+            <div class="input-group">
+                <label for="testMode">Test Mode:</label>
+                <select id="testMode">
+                    <option value="performance">Performance Test</option>
+                    <option value="memory">Memory Analysis</option>
+                    <option value="stress">Stress Test</option>
+                </select>
+            </div>
+            
+            <div class="input-group">
+                <label>&nbsp;</label>
+                <button id="runTest">Run Test</button>
+            </div>
+            
+            <div class="input-group">
+                <label>&nbsp;</label>
+                <button id="clearResults">Clear Results</button>
+            </div>
+        </div>
+        
+        <div class="progress-container" id="progressContainer">
+            <div class="progress-bar">
+                <div class="progress-fill" id="progressFill"></div>
+                <div class="progress-text" id="progressText">0%</div>
+            </div>
+            <div style="margin-top: 10px; text-align: center; color: #718096;">
+                <span id="progressDetails">Initializing...</span>
+            </div>
+        </div>
+        
+        <div class="results" id="results">
+            <h2>Performance Results</h2>
+            <div class="metric-grid">
+                <div class="metric-card">
+                    <div class="metric-value" id="totalTime">-</div>
+                    <div class="metric-label">Total Time (ms)</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-value" id="recordsPerSecond">-</div>
+                    <div class="metric-label">Records/Second</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-value" id="peakMemory">-</div>
+                    <div class="metric-label">Peak Memory (MB)</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-value" id="progressUpdates">-</div>
+                    <div class="metric-label">Progress Updates</div>
+                </div>
+            </div>
+            
+            <h3>Target Validation</h3>
+            <div id="targetValidation"></div>
+            
+            <div class="log" id="logOutput"></div>
+        </div>
+        
+        <div class="error" id="errorDisplay" style="display: none;"></div>
+    </div>
+
+    <script>
+        class PerformanceAnalyzer {
+            constructor() {
+                this.metrics = {
+                    parseTime: 0,
+                    peakMemory: 0,
+                    progressUpdates: [],
+                    memorySnapshots: [],
+                    startMemory: 0
+                };
+                this.startTime = 0;
+                this.memoryInterval = null;
+            }
+
+            start() {
+                this.startTime = performance.now();
+                this.metrics.startMemory = performance.memory ? performance.memory.usedJSHeapSize : 0;
+                this.log('🚀 Starting performance analysis...');
+                this.log(`Initial memory: ${this.formatBytes(this.metrics.startMemory)}`);
+                
+                // Start memory monitoring
+                if (performance.memory) {
+                    this.memoryInterval = setInterval(() => {
+                        const currentMemory = performance.memory.usedJSHeapSize;
+                        this.metrics.memorySnapshots.push({
+                            timestamp: performance.now() - this.startTime,
+                            memory: currentMemory
+                        });
+                        
+                        if (currentMemory > this.metrics.peakMemory) {
+                            this.metrics.peakMemory = currentMemory;
+                        }
+                    }, 100); // Sample every 100ms
+                }
+            }
+
+            recordProgress(progressData) {
+                const currentMemory = performance.memory ? performance.memory.usedJSHeapSize : 0;
+                this.metrics.progressUpdates.push({
+                    ...progressData,
+                    timestamp: performance.now() - this.startTime,
+                    memoryUsed: currentMemory
+                });
+                
+                this.updateProgress(progressData);
+            }
+
+            finish(results) {
+                this.metrics.parseTime = performance.now() - this.startTime;
+                
+                if (this.memoryInterval) {
+                    clearInterval(this.memoryInterval);
+                }
+                
+                this.log('📊 Performance Analysis Complete');
+                this.log('='.repeat(50));
+                this.displayResults(results);
+            }
+
+            updateProgress(progressData) {
+                const progressFill = document.getElementById('progressFill');
+                const progressText = document.getElementById('progressText');
+                const progressDetails = document.getElementById('progressDetails');
+                
+                progressFill.style.width = `${progressData.percentage}%`;
+                progressText.textContent = `${progressData.percentage.toFixed(1)}%`;
+                
+                const eta = progressData.eta > 0 ? `ETA: ${progressData.eta.toFixed(1)}s` : '';
+                progressDetails.textContent = `Chunk ${progressData.currentChunk}/${progressData.totalChunks} - ${progressData.processed} records processed ${eta}`;
+            }
+
+            displayResults(results) {
+                const recordCount = results.records ? results.records.length : 0;
+                const recordsPerSecond = recordCount > 0 ? (recordCount / this.metrics.parseTime * 1000) : 0;
+                
+                document.getElementById('totalTime').textContent = this.metrics.parseTime.toFixed(0);
+                document.getElementById('recordsPerSecond').textContent = recordsPerSecond.toFixed(0);
+                document.getElementById('peakMemory').textContent = (this.metrics.peakMemory / 1024 / 1024).toFixed(1);
+                document.getElementById('progressUpdates').textContent = this.metrics.progressUpdates.length;
+                
+                this.validateTargets(recordCount);
+                
+                document.getElementById('progressContainer').style.display = 'none';
+                document.getElementById('results').style.display = 'block';
+            }
+
+            validateTargets(recordCount) {
+                const validation = document.getElementById('targetValidation');
+                validation.innerHTML = '';
+                
+                // Target: <500ms per 1000 records
+                const targetTimeFor1k = 500;
+                const expectedTime = (recordCount / 1000) * targetTimeFor1k;
+                const timeRatio = this.metrics.parseTime / expectedTime;
+                
+                const timeStatus = timeRatio <= 1.0 ? 'pass' : (timeRatio <= 1.5 ? 'warn' : 'fail');
+                const timeSpan = `<span class="status-indicator status-${timeStatus}">${timeRatio <= 1.0 ? '✅ PASS' : (timeRatio <= 1.5 ? '⚠️ WARN' : '❌ FAIL')}</span>`;
+                
+                validation.innerHTML += `
+                    <div>Performance Target: ${this.metrics.parseTime.toFixed(0)}ms vs ${expectedTime.toFixed(0)}ms expected ${timeSpan}</div>
+                `;
+                
+                // Memory target: <200MB
+                const memoryTargetMB = 200;
+                const peakMemoryMB = this.metrics.peakMemory / 1024 / 1024;
+                const memoryStatus = peakMemoryMB <= memoryTargetMB ? 'pass' : (peakMemoryMB <= memoryTargetMB * 1.5 ? 'warn' : 'fail');
+                const memorySpan = `<span class="status-indicator status-${memoryStatus}">${peakMemoryMB <= memoryTargetMB ? '✅ PASS' : (peakMemoryMB <= memoryTargetMB * 1.5 ? '⚠️ WARN' : '❌ FAIL')}</span>`;
+                
+                validation.innerHTML += `
+                    <div>Memory Target: ${peakMemoryMB.toFixed(1)}MB vs ${memoryTargetMB}MB limit ${memorySpan}</div>
+                `;
+                
+                // Progress update frequency
+                const avgUpdateInterval = this.calculateAverageUpdateInterval();
+                const updateFrequencyHz = avgUpdateInterval > 0 ? 1000 / avgUpdateInterval : 0;
+                const frequencyStatus = updateFrequencyHz <= 30 ? 'pass' : 'warn';
+                const frequencySpan = `<span class="status-indicator status-${frequencyStatus}">${updateFrequencyHz <= 30 ? '✅ OPTIMAL' : '⚠️ HIGH'}</span>`;
+                
+                validation.innerHTML += `
+                    <div>Update Frequency: ${updateFrequencyHz.toFixed(1)} Hz ${frequencySpan}</div>
+                `;
+            }
+
+            calculateAverageUpdateInterval() {
+                if (this.metrics.progressUpdates.length < 2) return 0;
+                
+                const intervals = [];
+                for (let i = 1; i < this.metrics.progressUpdates.length; i++) {
+                    intervals.push(this.metrics.progressUpdates[i].timestamp - this.metrics.progressUpdates[i-1].timestamp);
+                }
+                
+                return intervals.reduce((a, b) => a + b, 0) / intervals.length;
+            }
+
+            log(message) {
+                console.log(message);
+                const logOutput = document.getElementById('logOutput');
+                logOutput.textContent += new Date().toLocaleTimeString() + ': ' + message + '\\n';
+                logOutput.scrollTop = logOutput.scrollHeight;
+            }
+
+            formatBytes(bytes) {
+                if (bytes === 0) return '0 B';
+                const k = 1024;
+                const sizes = ['B', 'KB', 'MB', 'GB'];
+                const i = Math.floor(Math.log(bytes) / Math.log(k));
+                return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+            }
+        }
+
+        // Test data generation
+        function generateTestData(recordCount) {
+            const channels = [
+                'TechChannel', 'MusicStudio', 'NewsNetwork', 'GameReviews', 
+                'EducationHub', 'ScienceDaily', 'LifestyleVlog', 'BusinessInsights',
+                'CodingTutorials', 'AIResearch', 'StartupStories', 'HealthFitness',
+                'ScienceExplained', 'FoodieAdventures', 'TravelGuide', 'MovieReviews'
+            ];
+            
+            const videoTitles = [
+                'How AI is Changing Programming Forever',
+                'Latest Tech Trends You Need to Know',
+                'Music Production Tutorial for Beginners',
+                'Breaking News: Market Update',
+                'Game Review: Latest AAA Release',
+                'Learn Python in 10 Minutes',
+                'Science Breakthrough in Quantum Computing',
+                'Daily Vlog: Productive Morning Routine',
+                'Business Strategy Tips for Startups',
+                'Deep Learning Explained Simply',
+                'Cryptocurrency Market Analysis',
+                'Healthy Cooking Made Easy',
+                'Travel Hacks for Budget Trips',
+                'Movie Review: Latest Blockbuster'
+            ];
+
+            let html = `<!DOCTYPE html>
+<html>
+<head><title>My Activity</title></head>
+<body>
+<div class="content-cell">
+  <div class="mdl-grid">`;
+
+            for (let i = 0; i < recordCount; i++) {
+                const channel = channels[i % channels.length];
+                const title = videoTitles[i % videoTitles.length] + ` #${i + 1}`;
+                const videoId = 'v' + Math.random().toString(36).substr(2, 11);
+                
+                // Generate realistic timestamp
+                const date = new Date(2024, Math.floor(Math.random() * 12), 1 + Math.floor(Math.random() * 28));
+                const timestamp = date.toLocaleDateString('en-US', { 
+                    year: 'numeric', 
+                    month: 'short', 
+                    day: 'numeric' 
+                }) + ', ' + date.toLocaleTimeString('en-US') + ' CDT';
+
+                const product = Math.random() > 0.8 ? 'YouTube Music' : 'YouTube';
+
+                html += `
+    <div class="outer-cell mdl-cell mdl-cell--12-col mdl-shadow--2dp">
+      <div class="content-cell mdl-cell mdl-cell--6-col mdl-typography--body-1">
+        <a href="https://www.youtube.com/watch?v=${videoId}">${title}</a><br>
+        <a href="https://www.youtube.com/channel/UC${channel}">${channel}</a><br>
+        ${timestamp}
+      </div>
+      <div class="content-cell mdl-cell mdl-cell--6-col mdl-typography--body-1 mdl-typography--text-right">
+        <div class="mdl-typography--caption">${product}</div>
+      </div>
+    </div>`;
+            }
+
+            html += `
+  </div>
+</div>
+</body>
+</html>`;
+
+            return html;
+        }
+
+        // Main test runner
+        async function runWorkerTest() {
+            const recordCount = parseInt(document.getElementById('recordCount').value);
+            const testMode = document.getElementById('testMode').value;
+            
+            // Clear previous results
+            document.getElementById('results').style.display = 'none';
+            document.getElementById('errorDisplay').style.display = 'none';
+            document.getElementById('logOutput').textContent = '';
+            
+            const analyzer = new PerformanceAnalyzer();
+            
+            try {
+                analyzer.log(`Starting ${testMode} with ${recordCount} records`);
+                
+                // Generate test data
+                const testData = generateTestData(recordCount);
+                analyzer.log(`Generated ${(new Blob([testData]).size / 1024 / 1024).toFixed(2)} MB of test HTML`);
+                
+                // Show progress
+                document.getElementById('progressContainer').style.display = 'block';
+                
+                // Create and configure worker
+                const worker = new Worker('/lib/parser.worker.ts', { type: 'module' });
+                
+                analyzer.start();
+                
+                // Set up worker message handlers
+                worker.addEventListener('message', (event) => {
+                    const data = event.data;
+                    
+                    if (data.type === 'progress') {
+                        analyzer.recordProgress(data);
+                    } else if (data.type === 'complete') {
+                        analyzer.finish(data);
+                        worker.terminate();
+                    } else if (data.type === 'error') {
+                        document.getElementById('errorDisplay').textContent = 'Worker error: ' + data.error;
+                        document.getElementById('errorDisplay').style.display = 'block';
+                        document.getElementById('progressContainer').style.display = 'none';
+                        worker.terminate();
+                    }
+                });
+                
+                worker.addEventListener('error', (error) => {
+                    document.getElementById('errorDisplay').textContent = 'Worker failed to load: ' + error.message;
+                    document.getElementById('errorDisplay').style.display = 'block';
+                    document.getElementById('progressContainer').style.display = 'none';
+                    worker.terminate();
+                });
+                
+                // Start processing
+                worker.postMessage(testData);
+                
+            } catch (error) {
+                document.getElementById('errorDisplay').textContent = 'Test failed: ' + error.message;
+                document.getElementById('errorDisplay').style.display = 'block';
+                document.getElementById('progressContainer').style.display = 'none';
+            }
+        }
+
+        // Event listeners
+        document.getElementById('runTest').addEventListener('click', () => {
+            const button = document.getElementById('runTest');
+            button.disabled = true;
+            button.textContent = 'Running...';
+            
+            runWorkerTest().finally(() => {
+                button.disabled = false;
+                button.textContent = 'Run Test';
+            });
+        });
+
+        document.getElementById('clearResults').addEventListener('click', () => {
+            document.getElementById('results').style.display = 'none';
+            document.getElementById('errorDisplay').style.display = 'none';
+            document.getElementById('progressContainer').style.display = 'none';
+            document.getElementById('logOutput').textContent = '';
+        });
+    </script>
+</body>
+</html>
