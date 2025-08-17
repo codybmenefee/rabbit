@@ -2,106 +2,300 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { useSession } from 'next-auth/react'
+import { useRouter } from 'next/navigation'
 import { WatchRecord } from '@/types/records'
 import { watchHistoryStorage } from '@/lib/storage'
 import { createHistoricalStorage } from '@/lib/historical-storage'
 import { migrateSessionToHistorical, needsSessionMigration } from '@/lib/session-migration'
 import { MainDashboard } from './main-dashboard'
-import { Loader2, AlertCircle, Database, Cloud, ArrowRight } from 'lucide-react'
+import { StorageConflictModal, ConflictResolutionAction } from '@/components/storage/storage-conflict-modal'
+import { StorageStatus } from '@/components/storage/storage-status'
+import { ValidationDashboard } from '@/components/validation/validation-dashboard'
+import { dataConsistencyValidator } from '@/lib/data-consistency-validator'
+import { DataConsistencyReport, ValidationStatus } from '@/types/validation'
+import { Loader2, AlertCircle, Database, Cloud, ArrowRight, RefreshCw, Shield } from 'lucide-react'
 import { Card } from '@/components/ui/card'
 
 interface DashboardDataProviderProps {
   className?: string
 }
 
-type LoadingState = 'loading' | 'success' | 'error' | 'empty' | 'migrating'
+type LoadingState = 'loading' | 'success' | 'error' | 'empty' | 'migrating' | 'conflict'
+type DataSource = 'session' | 'historical' | 'both'
+
+interface DataSourceInfo {
+  source: DataSource
+  recordCount: number
+  lastUpdated?: string
+  hasConflict: boolean
+  conflictDetails?: {
+    sessionCount: number
+    historicalCount: number
+    sessionData?: WatchRecord[]
+    historicalData?: WatchRecord[]
+  }
+}
 
 export function DashboardDataProvider({ className }: DashboardDataProviderProps) {
   const { data: session, status } = useSession()
+  const router = useRouter()
   const [data, setData] = useState<WatchRecord[]>([])
   const [loadingState, setLoadingState] = useState<LoadingState>('loading')
   const [error, setError] = useState<string | null>(null)
-  const [dataSource, setDataSource] = useState<'session' | 'historical' | null>(null)
+  const [dataSourceInfo, setDataSourceInfo] = useState<DataSourceInfo | null>(null)
   const [migrationAttempted, setMigrationAttempted] = useState(false)
+  const [retryCount, setRetryCount] = useState(0)
+  const [lastRefreshed, setLastRefreshed] = useState<Date>(new Date())
+  const [showConflictModal, setShowConflictModal] = useState(false)
+  const [conflictData, setConflictData] = useState<{ sessionData: WatchRecord[], historicalData: WatchRecord[] } | null>(null)
+  const [validationReport, setValidationReport] = useState<DataConsistencyReport | null>(null)
+  const [showValidationDashboard, setShowValidationDashboard] = useState(false)
+  const [validationStatus, setValidationStatus] = useState<ValidationStatus>('unknown')
 
   const isAuthenticated = status === 'authenticated' && session?.user?.id
 
+  const loadDataFromSources = useCallback(async (): Promise<{
+    sessionData: WatchRecord[]
+    historicalData: WatchRecord[]
+    sessionError?: string
+    historicalError?: string
+  }> => {
+    const result = {
+      sessionData: [] as WatchRecord[],
+      historicalData: [] as WatchRecord[]
+    }
+
+    // Always try to load from session storage
+    try {
+      result.sessionData = await watchHistoryStorage.getRecords() || []
+      console.log(`📦 Session storage: ${result.sessionData.length} records`)
+    } catch (error) {
+      console.warn('❌ Failed to load from session storage:', error)
+      result.sessionError = error instanceof Error ? error.message : 'Session storage failed'
+    }
+
+    // Try historical storage if authenticated
+    if (isAuthenticated && session?.user?.id) {
+      try {
+        const historicalStorage = createHistoricalStorage(session.user.id)
+        const aggregations = await historicalStorage.getPrecomputedAggregations()
+        
+        if (aggregations && aggregations.totalRecords > 0) {
+          result.historicalData = await historicalStorage.queryTimeSlice({})
+          console.log(`☁️ Historical storage: ${result.historicalData.length} records`)
+        } else {
+          console.log('☁️ Historical storage: No aggregations found')
+        }
+      } catch (error) {
+        console.warn('❌ Failed to load from historical storage:', error)
+        result.historicalError = error instanceof Error ? error.message : 'Historical storage failed'
+      }
+    }
+
+    return result
+  }, [isAuthenticated, session?.user?.id])
+
+  const detectDataConflict = useCallback((sessionData: WatchRecord[], historicalData: WatchRecord[]): boolean => {
+    if (sessionData.length === 0 || historicalData.length === 0) return false
+    
+    // Consider it a conflict if session has significantly more data than historical
+    // This could indicate failed migration or new data not yet synced
+    const significantDifference = Math.abs(sessionData.length - historicalData.length) > 10
+    const sessionHasMoreData = sessionData.length > historicalData.length
+    
+    return significantDifference && sessionHasMoreData
+  }, [])
+
   const loadData = useCallback(async () => {
+    console.log('🔄 Starting unified data loading...')
     setLoadingState('loading')
     setError(null)
+    setRetryCount(prev => prev + 1)
 
     try {
-      let records: WatchRecord[] = []
-      
-      if (isAuthenticated && session?.user?.id) {
-        // Check if we need to migrate session data first
-        if (!migrationAttempted) {
-          const needsMigration = await needsSessionMigration()
-          
-          if (needsMigration) {
-            console.log('Session migration needed for user:', session.user.id)
-            setLoadingState('migrating')
-            
-            try {
-              const migrationResult = await migrateSessionToHistorical(session.user.id)
-              
-              if (migrationResult.success && migrationResult.migratedRecords > 0) {
-                console.log(`Successfully migrated ${migrationResult.migratedRecords} records`)
-              } else if (!migrationResult.success) {
-                console.warn('Migration failed:', migrationResult.error)
-              }
-            } catch (migrationError) {
-              console.warn('Migration failed with error:', migrationError)
-            }
-          }
-          
-          setMigrationAttempted(true)
-        }
-
-        // Try to load from historical storage first
-        console.log('Loading from historical storage for user:', session.user.id)
-        const historicalStorage = createHistoricalStorage(session.user.id)
+      // Handle migration first if needed
+      if (isAuthenticated && session?.user?.id && !migrationAttempted) {
+        const needsMigration = await needsSessionMigration()
         
-        try {
-          // Check if we have any historical data
-          const aggregations = await historicalStorage.getPrecomputedAggregations()
-          console.log('Aggregations data:', aggregations)
+        if (needsMigration) {
+          console.log('🔄 Migration needed for user:', session.user.id)
+          setLoadingState('migrating')
           
-          if (aggregations && aggregations.totalRecords > 0) {
-            // Load all historical data for dashboard
-            records = await historicalStorage.queryTimeSlice({})
-            setDataSource('historical')
-            console.log(`Loaded ${records.length} records from historical storage`)
-          } else {
-            // No historical data, try session storage
-            const sessionData = await watchHistoryStorage.getRecords()
-            records = sessionData || []
-            setDataSource('session')
-            console.log(`No historical data found, loaded ${records.length} records from session storage`)
+          try {
+            const migrationResult = await migrateSessionToHistorical(session.user.id)
+            
+            if (migrationResult.success && migrationResult.migratedRecords > 0) {
+              console.log(`✅ Successfully migrated ${migrationResult.migratedRecords} records`)
+              
+              // Invalidate caches after successful migration
+              const historicalStorage = createHistoricalStorage(session.user.id)
+              await historicalStorage.invalidateClientCaches()
+              
+              // Force router refresh to clear any stale cache
+              router.refresh()
+            } else if (!migrationResult.success) {
+              console.warn('⚠️ Migration failed:', migrationResult.error)
+            }
+          } catch (migrationError) {
+            console.warn('❌ Migration failed with error:', migrationError)
           }
-        } catch (histError) {
-          console.warn('Failed to load from historical storage, falling back to session:', histError)
-          const sessionData = await watchHistoryStorage.getRecords()
-          records = sessionData || []
-          setDataSource('session')
         }
-      } else {
-        // Load from session storage for unauthenticated users
-        console.log('Loading from session storage (unauthenticated)')
-        const sessionData = await watchHistoryStorage.getRecords()
-        records = sessionData || []
-        setDataSource('session')
+        
+        setMigrationAttempted(true)
       }
 
-      setData(records)
-      setLoadingState(records.length > 0 ? 'success' : 'empty')
+      // Load from both sources
+      const { sessionData, historicalData, sessionError, historicalError } = await loadDataFromSources()
+      
+      // Determine data source and detect conflicts
+      const hasConflict = detectDataConflict(sessionData, historicalData)
+      let finalData: WatchRecord[] = []
+      let sourceInfo: DataSourceInfo
+
+      if (hasConflict) {
+        console.log('⚠️ Data conflict detected between storage systems')
+        setLoadingState('conflict')
+        setConflictData({ sessionData, historicalData })
+        sourceInfo = {
+          source: 'both',
+          recordCount: Math.max(sessionData.length, historicalData.length),
+          hasConflict: true,
+          conflictDetails: {
+            sessionCount: sessionData.length,
+            historicalCount: historicalData.length,
+            sessionData,
+            historicalData
+          }
+        }
+        // Use the larger dataset for now, but show conflict UI
+        finalData = sessionData.length > historicalData.length ? sessionData : historicalData
+      } else if (historicalData.length > 0) {
+        // Prefer historical storage if available
+        console.log('✅ Using historical storage data')
+        finalData = historicalData
+        sourceInfo = {
+          source: 'historical',
+          recordCount: historicalData.length,
+          hasConflict: false
+        }
+      } else if (sessionData.length > 0) {
+        // Fall back to session storage
+        console.log('✅ Using session storage data')
+        finalData = sessionData
+        sourceInfo = {
+          source: 'session',
+          recordCount: sessionData.length,
+          hasConflict: false
+        }
+      } else {
+        // No data in either source
+        console.log('📭 No data found in any storage')
+        finalData = []
+        sourceInfo = {
+          source: 'session',
+          recordCount: 0,
+          hasConflict: false
+        }
+      }
+
+      // Handle errors
+      if (sessionError && historicalError) {
+        throw new Error(`Both storage systems failed: Session: ${sessionError}, Historical: ${historicalError}`)
+      } else if (sessionError && historicalData.length === 0) {
+        throw new Error(`Session storage failed and no historical data: ${sessionError}`)
+      } else if (historicalError && sessionData.length === 0) {
+        console.warn('Historical storage failed but using session data:', historicalError)
+      }
+
+      setData(finalData)
+      setDataSourceInfo(sourceInfo)
+      setLoadingState(hasConflict ? 'conflict' : (finalData.length > 0 ? 'success' : 'empty'))
+      setLastRefreshed(new Date())
+      console.log(`✅ Data loading complete: ${finalData.length} records from ${sourceInfo.source}`)
+
+      // Run automatic validation if we have data from both sources
+      if (isAuthenticated && sessionData.length > 0 && historicalData.length > 0 && !hasConflict) {
+        try {
+          console.log('🔍 Running automatic validation after data load...')
+          const report = await dataConsistencyValidator.validateConsistency(
+            sessionData,
+            historicalData,
+            {
+              recordCountTolerance: 5,
+              checksumValidation: true,
+              deduplicationCheck: true,
+              automaticValidation: {
+                enabled: true,
+                frequency: 30,
+                triggerOnDataChange: true
+              }
+            }
+          )
+          
+          setValidationReport(report)
+          setValidationStatus(report.overallStatus)
+          
+          // Show validation dashboard if there are issues
+          if (report.overallStatus === 'error' || report.issues.length > 2) {
+            setShowValidationDashboard(true)
+          }
+          
+          console.log(`🔍 Automatic validation completed: ${report.overallStatus} (${report.issues.length} issues)`)
+        } catch (validationError) {
+          console.warn('⚠️ Automatic validation failed:', validationError)
+          setValidationStatus('error')
+        }
+      } else if (finalData.length > 0) {
+        // Run single-source validation for data quality check
+        try {
+          const qualityMetrics = dataConsistencyValidator.validateDataQuality(finalData)
+          setValidationStatus(qualityMetrics.overallQualityScore >= 90 ? 'healthy' : 
+            qualityMetrics.overallQualityScore >= 70 ? 'warning' : 'error')
+        } catch (error) {
+          console.warn('⚠️ Data quality validation failed:', error)
+        }
+      }
 
     } catch (err) {
-      console.error('Failed to load dashboard data:', err)
+      console.error('❌ Failed to load dashboard data:', err)
       setError(err instanceof Error ? err.message : 'Failed to load data')
       setLoadingState('error')
     }
-  }, [isAuthenticated, session?.user?.id, migrationAttempted])
+  }, [isAuthenticated, session?.user?.id, migrationAttempted, loadDataFromSources, detectDataConflict])
+
+  const handleConflictResolution = useCallback(async (action: ConflictResolutionAction, resolvedData?: WatchRecord[]) => {
+    try {
+      if (resolvedData) {
+        setData(resolvedData)
+        setDataSourceInfo(prev => prev ? {
+          ...prev,
+          hasConflict: false,
+          conflictDetails: undefined,
+          recordCount: resolvedData.length
+        } : null)
+        setLoadingState('success')
+      }
+      
+      // Force reload data to ensure consistency
+      setTimeout(() => {
+        loadData()
+      }, 1000)
+    } catch (error) {
+      console.error('Failed to handle conflict resolution:', error)
+      setError('Failed to resolve storage conflict')
+      setLoadingState('error')
+    }
+  }, [loadData])
+
+  const handleValidationComplete = useCallback((report: DataConsistencyReport) => {
+    setValidationReport(report)
+    setValidationStatus(report.overallStatus)
+    
+    // Update data source info if validation reveals conflicts
+    if (report.overallStatus === 'error' && report.issues.some(issue => issue.category === 'recordCount')) {
+      setDataSourceInfo(prev => prev ? { ...prev, hasConflict: true } : null)
+    }
+  }, [])
 
   // Load data when authentication status changes
   useEffect(() => {
@@ -120,8 +314,11 @@ export function DashboardDataProvider({ className }: DashboardDataProviderProps)
               <div className="space-y-2">
                 <p className="text-lg font-medium terminal-text">LOADING_DATA_STREAM...</p>
                 <p className="text-terminal-muted text-sm terminal-text">
-                  {isAuthenticated ? 'Connecting to historical storage...' : 'Loading session data...'}
+                  {isAuthenticated ? 'Checking storage systems...' : 'Loading session data...'}
                 </p>
+                {retryCount > 1 && (
+                  <p className="text-xs text-orange-400">Retry attempt {retryCount}</p>
+                )}
               </div>
             </div>
           </div>
@@ -144,6 +341,39 @@ export function DashboardDataProvider({ className }: DashboardDataProviderProps)
               </div>
             </div>
           </div>
+        )
+
+      case 'conflict':
+        return (
+          <Card className="p-8 text-center border-yellow-500/20 bg-yellow-500/5">
+            <AlertCircle className="h-12 w-12 text-yellow-500 mx-auto mb-4" />
+            <h3 className="text-lg font-medium text-yellow-500 mb-2 terminal-text">STORAGE_CONFLICT_DETECTED</h3>
+            <p className="text-terminal-muted mb-4 terminal-text">
+              Data mismatch between storage systems detected.
+            </p>
+            {dataSourceInfo?.conflictDetails && (
+              <div className="text-sm text-terminal-muted mb-4 space-y-1">
+                <p>Session Storage: {dataSourceInfo.conflictDetails.sessionCount} records</p>
+                <p>Historical Storage: {dataSourceInfo.conflictDetails.historicalCount} records</p>
+              </div>
+            )}
+            <div className="flex gap-2 justify-center">
+              <button
+                onClick={() => setShowConflictModal(true)}
+                className="px-4 py-2 bg-yellow-600 text-white rounded hover:bg-yellow-700 terminal-text flex items-center gap-2"
+              >
+                <AlertCircle className="h-4 w-4" />
+                RESOLVE_CONFLICT
+              </button>
+              <button
+                onClick={loadData}
+                className="px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-700 terminal-text flex items-center gap-2"
+              >
+                <RefreshCw className="h-4 w-4" />
+                RETRY_SYNC
+              </button>
+            </div>
+          </Card>
         )
 
       case 'error':
@@ -182,7 +412,7 @@ export function DashboardDataProvider({ className }: DashboardDataProviderProps)
     }
   }
 
-  if (loadingState !== 'success') {
+  if (loadingState !== 'success' && loadingState !== 'conflict') {
     return (
       <div className={className}>
         {renderLoadingState()}
@@ -192,36 +422,111 @@ export function DashboardDataProvider({ className }: DashboardDataProviderProps)
 
   return (
     <div className={className}>
-      {/* Data source indicator */}
+      {/* Enhanced data source indicator */}
       <div className="mb-6 flex items-center justify-between">
         <div className="flex items-center space-x-2 text-sm text-terminal-muted terminal-text">
-          {dataSource === 'historical' ? (
+          {dataSourceInfo?.source === 'historical' ? (
             <>
               <Cloud className="h-4 w-4 signal-blue" />
               <span>Historical Storage</span>
-              <span className="text-terminal-muted">• {data.length.toLocaleString()} total records</span>
+              <span className="text-terminal-muted">• {dataSourceInfo.recordCount.toLocaleString()} total records</span>
+            </>
+          ) : dataSourceInfo?.source === 'both' ? (
+            <>
+              <AlertCircle className="h-4 w-4 text-yellow-500" />
+              <span className="text-yellow-500">Conflict Mode</span>
+              <span className="text-terminal-muted">• {dataSourceInfo.recordCount.toLocaleString()} records (largest set)</span>
             </>
           ) : (
             <>
               <Database className="h-4 w-4 signal-orange" />
               <span>Session Storage</span>
-              <span className="text-terminal-muted">• {data.length.toLocaleString()} records</span>
+              <span className="text-terminal-muted">• {dataSourceInfo?.recordCount.toLocaleString() || 0} records</span>
               {isAuthenticated && (
-                <span className="signal-green">• Sign in benefits available</span>
+                <span className="signal-green">• Historical storage available</span>
               )}
+            </>
+          )}
+          {dataSourceInfo?.hasConflict && (
+            <span className="text-yellow-500">• Storage conflict detected</span>
+          )}
+          {validationStatus !== 'unknown' && (
+            <>
+              <span className="text-gray-400">•</span>
+              <div className="flex items-center space-x-1">
+                <Shield className={`h-3 w-3 ${
+                  validationStatus === 'healthy' ? 'text-green-500' : 
+                  validationStatus === 'warning' ? 'text-yellow-500' : 'text-red-500'
+                }`} />
+                <span className={`text-xs ${
+                  validationStatus === 'healthy' ? 'text-green-500' : 
+                  validationStatus === 'warning' ? 'text-yellow-500' : 'text-red-500'
+                }`}>
+                  {validationStatus.toUpperCase()}
+                </span>
+              </div>
             </>
           )}
         </div>
         
-        <button
-          onClick={loadData}
-          className="text-xs text-terminal-muted hover:text-terminal-text terminal-text flex items-center space-x-1"
-        >
-          <span>REFRESH</span>
-        </button>
+        <div className="flex items-center space-x-4">
+          <span className="text-xs text-gray-500">
+            Last updated: {lastRefreshed.toLocaleTimeString()}
+          </span>
+          <button
+            onClick={async () => {
+              // Invalidate caches before refresh if authenticated
+              if (isAuthenticated && session?.user?.id) {
+                const historicalStorage = createHistoricalStorage(session.user.id)
+                await historicalStorage.invalidateClientCaches()
+                router.refresh()
+              }
+              loadData()
+            }}
+            className="text-xs text-terminal-muted hover:text-terminal-text terminal-text flex items-center space-x-1"
+          >
+            <RefreshCw className="h-3 w-3" />
+            <span>REFRESH</span>
+          </button>
+          
+          {/* Validation Toggle Button */}
+          {validationReport && (
+            <button
+              onClick={() => setShowValidationDashboard(!showValidationDashboard)}
+              className={`text-xs flex items-center space-x-1 px-2 py-1 rounded terminal-text ${
+                validationStatus === 'healthy' ? 'text-green-600 hover:bg-green-100' :
+                validationStatus === 'warning' ? 'text-yellow-600 hover:bg-yellow-100' :
+                'text-red-600 hover:bg-red-100'
+              }`}
+            >
+              <Shield className="h-3 w-3" />
+              <span>VALIDATION</span>
+            </button>
+          )}
+        </div>
       </div>
 
+      {/* Validation Dashboard */}
+      {showValidationDashboard && (
+        <div className="mb-6">
+          <ValidationDashboard 
+            onValidationComplete={handleValidationComplete}
+            compact={false}
+          />
+        </div>
+      )}
+
       <MainDashboard data={data} />
+      
+      {/* Storage Conflict Resolution Modal */}
+      {showConflictModal && dataSourceInfo?.conflictDetails && conflictData && (
+        <StorageConflictModal
+          isOpen={showConflictModal}
+          onClose={() => setShowConflictModal(false)}
+          onResolve={handleConflictResolution}
+          conflictDetails={dataSourceInfo.conflictDetails}
+        />
+      )}
     </div>
   )
 }

@@ -1,6 +1,10 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+
+// Configure caching for user data pages
+export const dynamic = 'force-dynamic'
+export const fetchCache = 'default-no-store'
 import { useSession } from 'next-auth/react'
 import { Upload, FileText, BarChart3 } from 'lucide-react'
 import { Button } from '@/components/ui/button'

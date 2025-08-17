@@ -45,6 +45,22 @@ export interface ParsedEntry {
   isAd?: boolean
 }
 
+export interface TimestampParsingStats {
+  totalRecords: number
+  recordsWithTimestamps: number
+  recordsWithoutTimestamps: number
+  timestampExtractionFailures: number
+  lowConfidenceExtractions: number
+  averageConfidence: number
+  strategyUsage: Record<string, number>
+  qualityMetrics: {
+    withTimezones: number
+    withFullDateTime: number
+    formatRecognized: number
+    dateReasonable: number
+  }
+}
+
 export interface ImportSummary {
   totalRecords: number
   uniqueChannels: number
@@ -57,6 +73,7 @@ export interface ImportSummary {
     youtubeMusic: number
   }
   parseErrors: number
+  timestampStats?: TimestampParsingStats
 }
 
 export interface StorageMetadata {

@@ -1,0 +1,312 @@
+{
+  "totalTests": 14,
+  "passed": 3,
+  "failed": 11,
+  "categories": {
+    "standard": {
+      "passed": 1,
+      "total": 4
+    },
+    "edge-case": {
+      "passed": 1,
+      "total": 5
+    },
+    "international": {
+      "passed": 0,
+      "total": 3
+    },
+    "malformed": {
+      "passed": 1,
+      "total": 2
+    }
+  },
+  "failedTests": [
+    {
+      "name": "Standard US Format with Timezone",
+      "expected": {
+        "timestamp": "2025-08-12T03:30:00.000Z",
+        "confidence": 85,
+        "quality": {
+          "hasTimezone": true,
+          "hasFullDateTime": true,
+          "formatRecognized": true,
+          "dateReasonable": true
+        }
+      },
+      "actual": {
+        "timestamp": "2025-08-12T03:30:00.000Z",
+        "confidence": 100,
+        "quality": {
+          "hasTimezone": true,
+          "hasFullDateTime": true,
+          "formatRecognized": true,
+          "dateReasonable": true
+        }
+      }
+    },
+    {
+      "name": "Standard US Format without Timezone",
+      "expected": {
+        "timestamp": "2025-08-11T01:15:00.000Z",
+        "confidence": 75,
+        "quality": {
+          "hasTimezone": false,
+          "hasFullDateTime": true,
+          "formatRecognized": true,
+          "dateReasonable": true
+        }
+      },
+      "actual": {
+        "timestamp": "2025-08-11T01:15:00.000Z",
+        "confidence": 100,
+        "quality": {
+          "hasTimezone": false,
+          "hasFullDateTime": true,
+          "formatRecognized": true,
+          "dateReasonable": true
+        }
+      }
+    },
+    {
+      "name": "Malformed Date",
+      "expected": {
+        "timestamp": null,
+        "confidence": 0
+      },
+      "actual": {
+        "timestamp": "2027-08-26T06:30:00.000Z",
+        "confidence": 80,
+        "quality": {
+          "hasTimezone": false,
+          "hasFullDateTime": true,
+          "formatRecognized": false,
+          "dateReasonable": false
+        }
+      }
+    },
+    {
+      "name": "Year 2000 Issue",
+      "expected": {
+        "timestamp": null,
+        "confidence": 0
+      },
+      "actual": {
+        "timestamp": "2000-01-01T06:00:00.000Z",
+        "confidence": 100,
+        "quality": {
+          "hasTimezone": true,
+          "hasFullDateTime": true,
+          "formatRecognized": true,
+          "dateReasonable": false
+        }
+      }
+    },
+    {
+      "name": "Future Date",
+      "expected": {
+        "timestamp": null,
+        "confidence": 0
+      },
+      "actual": {
+        "timestamp": "2031-01-01T05:59:59.000Z",
+        "confidence": 100,
+        "quality": {
+          "hasTimezone": true,
+          "hasFullDateTime": true,
+          "formatRecognized": true,
+          "dateReasonable": false
+        }
+      }
+    },
+    {
+      "name": "European DD.MM.YYYY Format",
+      "expected": {
+        "timestamp": "2025-08-11T22:30:00.000Z",
+        "confidence": 65,
+        "quality": {
+          "hasTimezone": false,
+          "hasFullDateTime": true,
+          "formatRecognized": false,
+          "dateReasonable": true
+        }
+      },
+      "actual": {
+        "timestamp": "2025-08-12T03:30:00.000Z",
+        "confidence": 90,
+        "quality": {
+          "hasTimezone": false,
+          "hasFullDateTime": true,
+          "formatRecognized": false,
+          "dateReasonable": true
+        }
+      }
+    },
+    {
+      "name": "ISO Format",
+      "expected": {
+        "timestamp": "2025-08-11T22:30:00.000Z",
+        "confidence": 70,
+        "quality": {
+          "hasTimezone": false,
+          "hasFullDateTime": true,
+          "formatRecognized": false,
+          "dateReasonable": true
+        }
+      },
+      "actual": {
+        "timestamp": "2025-08-12T03:30:00.000Z",
+        "confidence": 90,
+        "quality": {
+          "hasTimezone": false,
+          "hasFullDateTime": true,
+          "formatRecognized": false,
+          "dateReasonable": true
+        }
+      }
+    },
+    {
+      "name": "French Format",
+      "expected": {
+        "timestamp": "2025-08-11T22:30:00.000Z",
+        "confidence": 60,
+        "quality": {
+          "hasTimezone": false,
+          "hasFullDateTime": false,
+          "formatRecognized": false,
+          "dateReasonable": true
+        }
+      },
+      "actual": {
+        "timestamp": null,
+        "confidence": 0,
+        "quality": {
+          "hasTimezone": false,
+          "hasFullDateTime": false,
+          "formatRecognized": false,
+          "dateReasonable": false
+        }
+      }
+    },
+    {
+      "name": "Non-breaking Spaces",
+      "expected": {
+        "timestamp": "2025-08-12T03:30:00.000Z",
+        "confidence": 80,
+        "quality": {
+          "hasTimezone": true,
+          "hasFullDateTime": true,
+          "formatRecognized": true,
+          "dateReasonable": true
+        }
+      },
+      "actual": {
+        "timestamp": null,
+        "confidence": 0,
+        "quality": {
+          "hasTimezone": false,
+          "hasFullDateTime": false,
+          "formatRecognized": false,
+          "dateReasonable": false
+        }
+      }
+    },
+    {
+      "name": "Multiple Timestamps (Should Pick First)",
+      "expected": {
+        "timestamp": "2025-08-12T03:30:00.000Z",
+        "confidence": 80,
+        "quality": {
+          "hasTimezone": true,
+          "hasFullDateTime": true,
+          "formatRecognized": true,
+          "dateReasonable": true
+        }
+      },
+      "actual": {
+        "timestamp": "2025-08-12T03:30:00.000Z",
+        "confidence": 100,
+        "quality": {
+          "hasTimezone": true,
+          "hasFullDateTime": true,
+          "formatRecognized": true,
+          "dateReasonable": true
+        }
+      }
+    },
+    {
+      "name": "YouTube Music Format",
+      "expected": {
+        "timestamp": "2025-08-12T03:30:00.000Z",
+        "confidence": 85,
+        "quality": {
+          "hasTimezone": true,
+          "hasFullDateTime": true,
+          "formatRecognized": true,
+          "dateReasonable": true
+        }
+      },
+      "actual": {
+        "timestamp": "2025-08-12T03:30:00.000Z",
+        "confidence": 100,
+        "quality": {
+          "hasTimezone": true,
+          "hasFullDateTime": true,
+          "formatRecognized": true,
+          "dateReasonable": true
+        }
+      }
+    }
+  ],
+  "performanceMetrics": {
+    "averageExtractionTime": 1.021255785714402,
+    "totalExtractionTime": 14.297581000001628,
+    "slowestTest": {
+      "name": "Standard US Format with Timezone",
+      "time": 6.416000000000167
+    }
+  },
+  "globalStats": {
+    "totalAttempts": 22,
+    "successfulExtractions": 18,
+    "failedExtractions": 4,
+    "overallSuccessRate": 81.81818181818183,
+    "strategyPerformance": [
+      {
+        "strategy": "regex-manual-google-takeout",
+        "attempts": 14,
+        "successes": 14,
+        "successRate": 100
+      },
+      {
+        "strategy": "regex-manual-mmddyyyy",
+        "attempts": 2,
+        "successes": 2,
+        "successRate": 100
+      },
+      {
+        "strategy": "regex",
+        "attempts": 4,
+        "successes": 0,
+        "successRate": 0
+      },
+      {
+        "strategy": "fallback",
+        "attempts": 4,
+        "successes": 0,
+        "successRate": 0
+      },
+      {
+        "strategy": "regex-date-fns",
+        "attempts": 2,
+        "successes": 2,
+        "successRate": 100
+      }
+    ]
+  },
+  "timestamp": "2025-08-16T06:29:33.186Z",
+  "environment": {
+    "nodeVersion": "v23.11.0",
+    "platform": "darwin",
+    "arch": "arm64"
+  }
+}

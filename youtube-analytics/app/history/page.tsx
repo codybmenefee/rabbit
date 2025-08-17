@@ -1,12 +1,16 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+
+// Ensure this page is always dynamically rendered to prevent caching of user data
+export const dynamic = 'force-dynamic'
+export const fetchCache = 'default-no-store'
 import { useSession } from 'next-auth/react'
 import { WatchRecord } from '@/types/records'
 import { watchHistoryStorage } from '@/lib/storage'
 import { createHistoricalStorage } from '@/lib/historical-storage'
 import { Card } from '@/components/ui/card'
-import { Loader2, Calendar, Clock, Film, ChevronLeft, ChevronRight, ExternalLink } from 'lucide-react'
+import { Loader2, Calendar, Clock, Film, ChevronLeft, ChevronRight, ExternalLink, AlertCircle } from 'lucide-react'
 import { format, parseISO } from 'date-fns'
 
 const ITEMS_PER_PAGE = 100
@@ -20,47 +24,128 @@ export default function HistoryPage() {
   
   const isAuthenticated = status === 'authenticated' && session?.user?.id
 
-  // Load data from storage
+  // Unified data loading with improved timestamp handling
   const loadData = useCallback(async () => {
+    console.log('📋 History Page: Starting unified data load...')
     setLoading(true)
+    
     try {
       let allRecords: WatchRecord[] = []
+      let dataSource: 'session' | 'historical' = 'session'
       
+      // Use same logic as dashboard data provider
       if (isAuthenticated && session?.user?.id) {
-        // Try historical storage first for authenticated users
+        console.log('📋 Checking historical storage for user:', session.user.id)
         const historicalStorage = createHistoricalStorage(session.user.id)
-        const aggregations = await historicalStorage.getPrecomputedAggregations()
         
-        if (aggregations && aggregations.totalRecords > 0) {
-          allRecords = await historicalStorage.queryTimeSlice({})
-        } else {
-          // Fall back to session storage
-          allRecords = await watchHistoryStorage.getRecords()
+        try {
+          const aggregations = await historicalStorage.getPrecomputedAggregations()
+          
+          if (aggregations && aggregations.totalRecords > 0) {
+            allRecords = await historicalStorage.queryTimeSlice({})
+            dataSource = 'historical'
+            console.log(`☁️ Historical storage: ${allRecords.length} records loaded`)
+          } else {
+            // Fallback to session storage
+            allRecords = await watchHistoryStorage.getRecords() || []
+            dataSource = 'session'
+            console.log(`📦 Session storage fallback: ${allRecords.length} records loaded`)
+          }
+        } catch (error) {
+          console.warn('❌ Historical storage failed, using session storage:', error)
+          allRecords = await watchHistoryStorage.getRecords() || []
+          dataSource = 'session'
         }
       } else {
-        // Use session storage for unauthenticated users
-        allRecords = await watchHistoryStorage.getRecords()
+        console.log('📦 Loading from session storage (unauthenticated)')
+        allRecords = await watchHistoryStorage.getRecords() || []
+        dataSource = 'session'
       }
 
-      // Filter out records without timestamps and sort by date (newest first)
-      const validRecords = allRecords
-        .filter(r => r.watchedAt !== null)
-        .sort((a, b) => {
-          const dateA = new Date(a.watchedAt!).getTime()
-          const dateB = new Date(b.watchedAt!).getTime()
-          return dateB - dateA // Newest first
-        })
-
-      setRecords(validRecords)
-      setTotalRecords(validRecords.length)
+      console.log(`📋 Data source: ${dataSource}, Total records: ${allRecords.length}`)
+      
+      // Enhanced timestamp validation and sorting
+      const processedRecords = processRecordsForDisplay(allRecords)
+      
+      setRecords(processedRecords.validRecords)
+      setTotalRecords(processedRecords.validRecords.length)
+      
+      console.log(`✅ Processing complete: ${processedRecords.validRecords.length} records, ${processedRecords.timestampStats.withValidTimestamps} with valid timestamps`)
+      
     } catch (error) {
-      console.error('Failed to load history data:', error)
+      console.error('❌ Failed to load history data:', error)
       setRecords([])
       setTotalRecords(0)
     } finally {
       setLoading(false)
     }
   }, [isAuthenticated, session?.user?.id])
+  
+  // Enhanced record processing with better timestamp handling
+  const processRecordsForDisplay = useCallback((allRecords: WatchRecord[]) => {
+    const timestampStats = {
+      total: allRecords.length,
+      withValidTimestamps: 0,
+      withNullTimestamps: 0,
+      withInvalidTimestamps: 0
+    }
+    
+    const recordsWithValidTimestamps: WatchRecord[] = []
+    const recordsWithInvalidTimestamps: WatchRecord[] = []
+    
+    // Categorize records by timestamp quality
+    allRecords.forEach(record => {
+      if (record.watchedAt === null) {
+        timestampStats.withNullTimestamps++
+        recordsWithInvalidTimestamps.push(record)
+      } else {
+        try {
+          const date = new Date(record.watchedAt)
+          if (!isNaN(date.getTime()) && isReasonableDate(date)) {
+            timestampStats.withValidTimestamps++
+            recordsWithValidTimestamps.push(record)
+          } else {
+            timestampStats.withInvalidTimestamps++
+            recordsWithInvalidTimestamps.push(record)
+            console.warn(`Invalid timestamp for record ${record.id}: ${record.watchedAt}`)
+          }
+        } catch {
+          timestampStats.withInvalidTimestamps++
+          recordsWithInvalidTimestamps.push(record)
+          console.warn(`Failed to parse timestamp for record ${record.id}: ${record.watchedAt}`)
+        }
+      }
+    })
+    
+    // Sort records with valid timestamps (newest first)
+    const sortedValidRecords = recordsWithValidTimestamps.sort((a, b) => {
+      const dateA = new Date(a.watchedAt!).getTime()
+      const dateB = new Date(b.watchedAt!).getTime()
+      return dateB - dateA
+    })
+    
+    // For records without valid timestamps, sort by ID as fallback
+    const sortedInvalidRecords = recordsWithInvalidTimestamps.sort((a, b) => 
+      b.id.localeCompare(a.id)
+    )
+    
+    // Combine: valid timestamps first, then invalid ones
+    const validRecords = [...sortedValidRecords, ...sortedInvalidRecords]
+    
+    console.log('📋 Timestamp processing stats:', timestampStats)
+    
+    return {
+      validRecords,
+      timestampStats
+    }
+  }, [])
+  
+  // Validate if a date is reasonable (not too far in past/future)
+  const isReasonableDate = useCallback((date: Date): boolean => {
+    const year = date.getFullYear()
+    const now = new Date()
+    return year >= 2005 && year <= (now.getFullYear() + 1) // YouTube was founded in 2005
+  }, [])
 
   // Load data on mount and when auth status changes
   useEffect(() => {
@@ -85,12 +170,13 @@ export default function HistoryPage() {
   }
 
   // Format date for display
-  const formatWatchDate = (dateStr: string) => {
+  const formatWatchDate = (dateStr: string | null) => {
+    if (!dateStr) return 'No timestamp'
     try {
       const date = parseISO(dateStr)
       return format(date, 'MMM d, yyyy • h:mm a')
     } catch {
-      return 'Unknown date'
+      return 'Invalid date'
     }
   }
 
@@ -155,8 +241,38 @@ export default function HistoryPage() {
     )
   }
 
+  console.log('🔍 RENDER: totalRecords =', totalRecords, 'records.length =', records.length, 'currentRecords.length =', currentRecords.length)
+
+  // Check if we have records without timestamps
+  const recordsWithoutTimestamps = records.filter(r => r.watchedAt === null).length
+  const hasTimestampIssues = recordsWithoutTimestamps > 0
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 p-6">
+      {/* Data Quality Info */}
+      <div className="text-xs text-gray-400 bg-gray-900/20 p-3 rounded border border-gray-700/30 mb-4">
+        <div className="flex items-center gap-4">
+          <span>Quality: {records.filter(r => r.watchedAt !== null).length}/{totalRecords} with timestamps</span>
+          <span>Sorted: {records.filter(r => r.watchedAt !== null).length > 0 ? 'By date → ID' : 'By ID only'}</span>
+          <span>Page: {currentPage}/{totalPages}</span>
+        </div>
+      </div>
+      
+      {/* Enhanced Timestamp Warning */}
+      {hasTimestampIssues && (
+        <div className="text-sm text-orange-400 bg-orange-900/20 p-3 rounded border border-orange-500/30 mb-4">
+          <div className="flex items-center gap-2 mb-2">
+            <AlertCircle className="h-4 w-4" />
+            <span className="font-medium">Timestamp Quality Issues Detected</span>
+          </div>
+          <div className="text-xs space-y-1">
+            <p>• {recordsWithoutTimestamps} of {totalRecords} videos are missing valid timestamp data</p>
+            <p>• Records with valid timestamps are sorted by date (newest first)</p>
+            <p>• Records without timestamps appear at the bottom, sorted by ID</p>
+          </div>
+        </div>
+      )}
+      
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -177,12 +293,27 @@ export default function HistoryPage() {
         {currentRecords.map((record) => (
           <div key={record.id} className="p-4 hover:bg-white/[0.02] transition-colors">
             <div className="flex items-start gap-4">
-              {/* Date/Time Column */}
+              {/* Date/Time Column with Quality Indicator */}
               <div className="flex-shrink-0 w-40 text-sm text-gray-400">
                 <div className="flex items-center gap-1">
                   <Calendar className="h-3 w-3" />
-                  <span>{formatWatchDate(record.watchedAt!)}</span>
+                  <span>{formatWatchDate(record.watchedAt)}</span>
+                  {record.rawTimestamp && (
+                    <div className="ml-1">
+                      {/\b(CDT|CST|PDT|PST|EDT|EST|UTC|GMT)\b/i.test(record.rawTimestamp) && (
+                        <div className="w-1.5 h-1.5 bg-green-400 rounded-full" title="Has timezone info" />
+                      )}
+                      {!/\b(CDT|CST|PDT|PST|EDT|EST|UTC|GMT)\b/i.test(record.rawTimestamp) && record.watchedAt && (
+                        <div className="w-1.5 h-1.5 bg-yellow-400 rounded-full" title="No timezone info" />
+                      )}
+                    </div>
+                  )}
                 </div>
+                {record.rawTimestamp && false && (
+                  <div className="text-xs text-gray-500 mt-1 truncate" title={record.rawTimestamp}>
+                    Raw: {record.rawTimestamp.substring(0, 20)}...
+                  </div>
+                )}
               </div>
 
               {/* Video Info */}

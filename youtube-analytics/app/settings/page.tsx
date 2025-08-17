@@ -1,6 +1,7 @@
 'use client'
 
 import { LoginButton } from '@/components/auth/login-button'
+import { StorageManagement } from '@/components/storage/storage-management'
 
 export const dynamic = 'force-dynamic'
 
@@ -22,17 +23,13 @@ export default function SettingsPage() {
         </div>
 
         {/* Data Management Section */}
-        <div className="rounded-xl border bg-card/50 backdrop-blur-sm p-6">
-          <h2 className="text-xl font-semibold text-white mb-4">Data Management</h2>
-          <div className="space-y-4">
-            <div>
-              <h3 className="text-lg font-medium text-white mb-2">Storage</h3>
-              <p className="text-gray-400 text-sm mb-3">Your YouTube watch history is stored securely and only accessible by you</p>
-              <div className="text-sm text-gray-500">
-                No data imported yet
-              </div>
-            </div>
+        <div className="space-y-6">
+          <div>
+            <h2 className="text-xl font-semibold text-white mb-4">Data Management</h2>
+            <p className="text-gray-400 mb-6">Manage your YouTube watch history storage and synchronization</p>
           </div>
+          
+          <StorageManagement />
         </div>
 
         {/* Privacy Section */}

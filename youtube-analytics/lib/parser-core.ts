@@ -1,4 +1,5 @@
 import { WatchRecord, ParsedEntry, ImportSummary } from '@/types/records'
+import { extractTimestamp, getTimestampExtractionStats, TimestampExtractionResult } from './resilient-timestamp-extractor'
 
 export interface ParseProgressCallback {
   (processed: number, total: number, percentage: number, eta: number, currentChunk: number, totalChunks: number): void
@@ -8,6 +9,25 @@ export interface ParsingOptions {
   chunkSize?: number
   onProgress?: ParseProgressCallback
   shouldCancel?: () => boolean
+  enableTimestampValidation?: boolean
+  logTimestampFailures?: boolean
+  minTimestampConfidence?: number
+}
+
+export interface TimestampParsingStats {
+  totalRecords: number
+  recordsWithTimestamps: number
+  recordsWithoutTimestamps: number
+  timestampExtractionFailures: number
+  lowConfidenceExtractions: number
+  averageConfidence: number
+  strategyUsage: Record<string, number>
+  qualityMetrics: {
+    withTimezones: number
+    withFullDateTime: number
+    formatRecognized: number
+    dateReasonable: number
+  }
 }
 
 /**
@@ -27,16 +47,45 @@ export class YouTubeHistoryParserCore {
     lifestyle: new Set(['lifestyle', 'vlog', 'daily', 'routine', 'travel', 'food', 'cooking'])
   }
 
-  // Cache for successful timestamp patterns to avoid repeated regex matching
-  private timestampPatternCache = new Map<string, RegExp>()
-  private successfulPattern: RegExp | null = null
+  // Removed pattern caching to prevent cross-contamination between records
+  // Each record is now parsed independently using the resilient timestamp extractor
 
   // Performance monitoring
   private memoryThreshold = 100 * 1024 * 1024 // 100MB threshold for memory warnings
   private processedRecords = 0
   private startTime = 0
+  
+  // Timestamp processing stats
+  private timestampStats: TimestampParsingStats = {
+    totalRecords: 0,
+    recordsWithTimestamps: 0,
+    recordsWithoutTimestamps: 0,
+    timestampExtractionFailures: 0,
+    lowConfidenceExtractions: 0,
+    averageConfidence: 0,
+    strategyUsage: {},
+    qualityMetrics: {
+      withTimezones: 0,
+      withFullDateTime: 0,
+      formatRecognized: 0,
+      dateReasonable: 0
+    }
+  }
+  
+  // Enable detailed logging
+  private enableTimestampValidation: boolean = true
+  private logTimestampFailures: boolean = true
+  private minTimestampConfidence: number = 70
 
   async parseHTML(htmlContent: string, options: ParsingOptions = {}): Promise<WatchRecord[]> {
+    // Initialize parsing options
+    this.enableTimestampValidation = options.enableTimestampValidation !== false
+    this.logTimestampFailures = options.logTimestampFailures !== false
+    this.minTimestampConfidence = options.minTimestampConfidence || 70
+    
+    // Reset timestamp stats
+    this.resetTimestampStats()
+    
     // Adaptive chunk sizing based on content density
     const CHUNK_SIZE = options.chunkSize || this.calculateOptimalChunkSize(htmlContent)
     const chunks = this.createChunks(htmlContent, CHUNK_SIZE)
@@ -94,6 +143,9 @@ export class YouTubeHistoryParserCore {
       records.push(...fallbackRecords)
     }
 
+    // Log final timestamp processing stats
+    this.logTimestampProcessingResults()
+    
     return records
   }
 
@@ -311,50 +363,21 @@ export class YouTubeHistoryParserCore {
       parsed.channelTitle = channelLink.textContent?.trim() || undefined
     }
     
-    // Optimized timestamp extraction with pattern caching
-    if (this.successfulPattern) {
-      // Try the last successful pattern first
-      const match = text.match(this.successfulPattern) || innerHTML.match(this.successfulPattern)
-      if (match) {
-        parsed.timestamp = match[1]
-      }
+    // Use resilient timestamp extractor with comprehensive validation
+    const timestampResult = extractTimestamp(text, innerHTML, { 
+      debug: this.logTimestampFailures,
+      minConfidence: this.minTimestampConfidence,
+      enableMetrics: this.enableTimestampValidation
+    })
+    
+    // Log timestamp extraction details for debugging
+    if (this.logTimestampFailures) {
+      this.logTimestampExtractionAttempt(timestampResult, text, innerHTML)
     }
     
-    if (!parsed.timestamp) {
-      const timestampPatterns = [
-        /(\w{3} \d{1,2}, \d{4}, \d{1,2}:\d{2}:\d{2} \w{2} \w{3})/,
-        /(\w{3} \d{1,2}, \d{4} \d{1,2}:\d{2}:\d{2} \w{2} \w{3})/,
-        /(\d{1,2}\/\d{1,2}\/\d{4}, \d{1,2}:\d{2}:\d{2} \w{2})/
-      ]
-      
-      for (const pattern of timestampPatterns) {
-        const match = text.match(pattern) || innerHTML.match(pattern)
-        if (match) {
-          parsed.timestamp = match[1]
-          this.successfulPattern = pattern // Cache for next time
-          break
-        }
-      }
-    }
-    
-    if (!parsed.timestamp) {
-      const datePattern = /(\w{3} \d{1,2}, \d{4})/
-      const timePattern = /(\d{1,2}:\d{2}:\d{2} \w{2} \w{3})/
-      
-      const dateMatch = text.match(datePattern) || innerHTML.match(datePattern)
-      const timeMatch = text.match(timePattern) || innerHTML.match(timePattern)
-      
-      if (dateMatch && timeMatch) {
-        parsed.timestamp = `${dateMatch[1]}, ${timeMatch[1]}`
-      }
-    }
-    
-    const watchedAtMatch = text.match(/Watched at (\d{1,2}:\d{2} \w{2})/)
-    if (watchedAtMatch && !parsed.timestamp) {
-      const dateMatch = text.match(/(\w{3} \d{1,2}, \d{4})/)
-      if (dateMatch) {
-        parsed.timestamp = `${dateMatch[1]}, ${watchedAtMatch[1]} CDT`
-      }
+    if (timestampResult.rawTimestamp) {
+      parsed.timestamp = timestampResult.rawTimestamp
+      parsed.timestampExtractionResult = timestampResult // Store full result for analysis
     }
     
     // Determine product
@@ -371,7 +394,11 @@ export class YouTubeHistoryParserCore {
   }
 
   private normalizeRecord(parsed: ParsedEntry): WatchRecord | null {
+    // Update timestamp stats
+    this.timestampStats.totalRecords++
+    
     if (!parsed.timestamp && !parsed.videoUrl) {
+      this.timestampStats.recordsWithoutTimestamps++
       return null
     }
     
@@ -382,56 +409,73 @@ export class YouTubeHistoryParserCore {
     let dayOfWeek: number | null = null
     let hour: number | null = null
     let yoyKey: string | null = null
+    let rawTimestamp: string | null = null
     
     if (parsed.timestamp) {
       try {
-        const sanitizeTs = (s: string) =>
-          s
-            .replace(/\u202F|\u00A0/g, ' ')
-            .replace(/\s{2,}/g, ' ')
-            .replace(/\s(CDT|CST|PDT|PST|EDT|EST|UTC|GMT)\b/gi, '')
-            .replace(/\s(AM|PM)\b/gi, (m) => m.toUpperCase())
-            .trim()
-
-        const tryParseDate = (raw: string): Date | null => {
-          const candidate = sanitizeTs(raw)
-
-          const d1 = new Date(candidate)
-          if (!isNaN(d1.getTime())) return d1
-
-          const variant = candidate.replace(', ', ' ').replace(/,/, ' ')
-          const d2 = new Date(variant)
-          if (!isNaN(d2.getTime())) return d2
-
-          const m1 = candidate.match(/(\d{1,2}\/\d{1,2}\/\d{4}),?\s+(\d{1,2}:\d{2}:\d{2})\s+(AM|PM)/i)
-          if (m1) {
-            const [, md, hms, ampm] = m1
-            const [M, D, Y] = md.split('/').map(Number)
-            const [hh_raw, mm, ss] = hms.split(':').map(Number)
-            let hh = hh_raw
-            const up = ampm.toUpperCase()
-            if (up === 'PM' && hh < 12) hh += 12
-            if (up === 'AM' && hh === 12) hh = 0
-            const d = new Date(Y, M - 1, D, hh, mm, ss)
-            if (!isNaN(d.getTime())) return d
+        // Use extraction result from parseEntry if available, otherwise re-extract
+        const extractionResult = (parsed as any).timestampExtractionResult || 
+                                extractTimestamp(parsed.timestamp, '', {
+                                  debug: this.logTimestampFailures,
+                                  minConfidence: this.minTimestampConfidence,
+                                  enableMetrics: this.enableTimestampValidation
+                                })
+        
+        if (extractionResult.timestamp) {
+          // Successfully extracted and validated timestamp
+          this.timestampStats.recordsWithTimestamps++
+          
+          // Update quality metrics
+          this.updateTimestampQualityStats(extractionResult)
+          
+          // Track strategy usage
+          if (extractionResult.strategy) {
+            this.timestampStats.strategyUsage[extractionResult.strategy] = 
+              (this.timestampStats.strategyUsage[extractionResult.strategy] || 0) + 1
           }
-
-          return null
-        }
-
-        const date = tryParseDate(parsed.timestamp)
-        if (date) {
-          watchedAt = date.toISOString()
+          
+          // Check confidence level
+          if (extractionResult.confidence < this.minTimestampConfidence) {
+            this.timestampStats.lowConfidenceExtractions++
+            if (this.logTimestampFailures) {
+              console.warn(`Low confidence timestamp (${extractionResult.confidence}%):`, parsed.timestamp)
+            }
+          }
+          
+          const date = new Date(extractionResult.timestamp)
+          watchedAt = extractionResult.timestamp
           year = date.getFullYear()
           month = date.getMonth() + 1
           week = this.getWeekNumber(date)
           dayOfWeek = date.getDay()
           hour = date.getHours()
           yoyKey = `${year}-${String(month).padStart(2, '0')}`
+          rawTimestamp = extractionResult.rawTimestamp
+        } else {
+          // Extraction failed - preserve raw timestamp for debugging
+          this.timestampStats.timestampExtractionFailures++
+          this.timestampStats.recordsWithoutTimestamps++
+          rawTimestamp = parsed.timestamp
+          
+          if (this.logTimestampFailures) {
+            console.warn('Resilient timestamp extraction failed for:', parsed.timestamp, {
+              confidence: extractionResult.confidence,
+              attempts: extractionResult.debugInfo?.attempts?.length || 0,
+              metrics: extractionResult.metrics
+            })
+          }
         }
       } catch (error) {
-        console.warn('Failed to parse timestamp:', parsed.timestamp, error)
+        this.timestampStats.timestampExtractionFailures++
+        this.timestampStats.recordsWithoutTimestamps++
+        rawTimestamp = parsed.timestamp
+        
+        if (this.logTimestampFailures) {
+          console.error('Failed to extract timestamp:', parsed.timestamp, error)
+        }
       }
+    } else {
+      this.timestampStats.recordsWithoutTimestamps++
     }
     
     const id = this.generateId(parsed.videoUrl || '', parsed.timestamp || '', parsed.videoTitle || '')
@@ -453,7 +497,7 @@ export class YouTubeHistoryParserCore {
       dayOfWeek,
       hour,
       yoyKey,
-      rawTimestamp: parsed.timestamp
+      rawTimestamp: rawTimestamp || parsed.timestamp
     }
   }
 
@@ -508,6 +552,111 @@ export class YouTubeHistoryParserCore {
     const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1))
     return Math.ceil(((d.getTime() - yearStart.getTime()) / 86400000 + 1) / 7)
   }
+  
+  /**
+   * Reset timestamp processing statistics
+   */
+  private resetTimestampStats() {
+    this.timestampStats = {
+      totalRecords: 0,
+      recordsWithTimestamps: 0,
+      recordsWithoutTimestamps: 0,
+      timestampExtractionFailures: 0,
+      lowConfidenceExtractions: 0,
+      averageConfidence: 0,
+      strategyUsage: {},
+      qualityMetrics: {
+        withTimezones: 0,
+        withFullDateTime: 0,
+        formatRecognized: 0,
+        dateReasonable: 0
+      }
+    }
+  }
+  
+  /**
+   * Update timestamp quality statistics
+   */
+  private updateTimestampQualityStats(result: TimestampExtractionResult) {
+    if (result.quality.hasTimezone) this.timestampStats.qualityMetrics.withTimezones++
+    if (result.quality.hasFullDateTime) this.timestampStats.qualityMetrics.withFullDateTime++
+    if (result.quality.formatRecognized) this.timestampStats.qualityMetrics.formatRecognized++
+    if (result.quality.dateReasonable) this.timestampStats.qualityMetrics.dateReasonable++
+  }
+  
+  /**
+   * Log timestamp extraction attempt for debugging
+   */
+  private logTimestampExtractionAttempt(result: TimestampExtractionResult, textContent: string, innerHTML: string) {
+    if (result.debugInfo && result.debugInfo.attempts.length > 0) {
+      const failedAttempts = result.debugInfo.attempts.filter(a => a.result === 'failed')
+      
+      if (failedAttempts.length > 0 || result.confidence < this.minTimestampConfidence) {
+        console.log('🕒 Timestamp Extraction Debug:', {
+          textSnippet: textContent.substring(0, 100) + '...',
+          finalResult: {
+            success: !!result.timestamp,
+            confidence: result.confidence,
+            strategy: result.strategy,
+            rawTimestamp: result.rawTimestamp
+          },
+          attempts: result.debugInfo.attempts.map(a => ({
+            strategy: a.strategy,
+            result: a.result,
+            confidence: a.confidence,
+            timeMs: a.timeMs,
+            error: a.error
+          })),
+          quality: result.quality,
+          metrics: result.metrics
+        })
+      }
+    }
+  }
+  
+  /**
+   * Log final timestamp processing results
+   */
+  private logTimestampProcessingResults() {
+    if (this.logTimestampFailures && this.timestampStats.totalRecords > 0) {
+      const successRate = (this.timestampStats.recordsWithTimestamps / this.timestampStats.totalRecords) * 100
+      
+      console.log('📊 Timestamp Processing Summary:', {
+        totalRecords: this.timestampStats.totalRecords,
+        withTimestamps: this.timestampStats.recordsWithTimestamps,
+        withoutTimestamps: this.timestampStats.recordsWithoutTimestamps,
+        extractionFailures: this.timestampStats.timestampExtractionFailures,
+        lowConfidenceExtractions: this.timestampStats.lowConfidenceExtractions,
+        successRate: `${successRate.toFixed(1)}%`,
+        strategyUsage: this.timestampStats.strategyUsage,
+        qualityMetrics: {
+          withTimezones: `${this.timestampStats.qualityMetrics.withTimezones}/${this.timestampStats.recordsWithTimestamps}`,
+          withFullDateTime: `${this.timestampStats.qualityMetrics.withFullDateTime}/${this.timestampStats.recordsWithTimestamps}`,
+          formatRecognized: `${this.timestampStats.qualityMetrics.formatRecognized}/${this.timestampStats.recordsWithTimestamps}`,
+          dateReasonable: `${this.timestampStats.qualityMetrics.dateReasonable}/${this.timestampStats.recordsWithTimestamps}`
+        }
+      })
+      
+      // Also log global extraction stats
+      const globalStats = getTimestampExtractionStats()
+      console.log('🌍 Global Timestamp Extraction Stats:', globalStats)
+    }
+  }
+  
+  /**
+   * Get current timestamp processing statistics
+   */
+  getTimestampStats(): TimestampParsingStats {
+    // Calculate average confidence from recorded records
+    const totalConfidence = this.timestampStats.recordsWithTimestamps > 0 ? 
+      (this.timestampStats.recordsWithTimestamps - this.timestampStats.lowConfidenceExtractions) * 85 + 
+      this.timestampStats.lowConfidenceExtractions * 50 : 0
+    
+    this.timestampStats.averageConfidence = this.timestampStats.recordsWithTimestamps > 0 ? 
+      totalConfidence / this.timestampStats.recordsWithTimestamps : 0
+      
+    return { ...this.timestampStats }
+  }
 
   generateSummary(records: WatchRecord[]): ImportSummary {
     const uniqueChannels = new Set(records.map(r => r.channelTitle).filter(Boolean))
@@ -535,7 +684,8 @@ export class YouTubeHistoryParserCore {
       uniqueChannels: uniqueChannels.size,
       dateRange,
       productBreakdown,
-      parseErrors: 0
+      parseErrors: 0,
+      timestampStats: this.getTimestampStats()
     }
   }
 }
@@ -546,6 +696,7 @@ export class YouTubeHistoryParserCore {
 export interface ProcessingStrategy {
   parseHTML(content: string, options?: ParsingOptions): Promise<WatchRecord[]>
   generateSummary(records: WatchRecord[]): ImportSummary
+  getTimestampStats(): TimestampParsingStats
 }
 
 /**
@@ -560,5 +711,9 @@ export class ClientProcessingStrategy implements ProcessingStrategy {
 
   generateSummary(records: WatchRecord[]): ImportSummary {
     return this.parser.generateSummary(records)
+  }
+  
+  getTimestampStats(): TimestampParsingStats {
+    return this.parser.getTimestampStats()
   }
 }
