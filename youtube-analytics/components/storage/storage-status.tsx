@@ -1,6 +1,6 @@
 'use client'
 
-import { useSession } from 'next-auth/react'
+import { useAuth } from '@clerk/nextjs'
 import { Database, Cloud, AlertTriangle, CheckCircle, RefreshCw, Wifi, WifiOff } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -30,8 +30,8 @@ export function StorageStatus({
   onResolveConflict,
   className
 }: StorageStatusProps) {
-  const { data: session } = useSession()
-  const isAuthenticated = session?.user?.id
+  const { userId } = useAuth()
+  const isAuthenticated = !!userId
 
   const getStatusColor = (status: StorageStatus) => {
     switch (status) {

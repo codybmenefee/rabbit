@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useRef, useEffect } from 'react'
 import { Upload, FileText, AlertCircle, CheckCircle, X, Cloud, Database } from 'lucide-react'
-import { useSession } from 'next-auth/react'
+import { useAuth } from '@clerk/nextjs'
 import { watchHistoryStorage } from '@/lib/storage'
 import { createHistoricalStorage, HistoricalUploadMetadata } from '@/lib/historical-storage'
 import { ImportSummary } from '@/types/records'
@@ -19,7 +19,7 @@ interface FileUploadProps {
 }
 
 export function FileUpload({ onImportComplete, onImportStart, className }: FileUploadProps) {
-  const { data: session, status } = useSession()
+  const { isLoaded, isSignedIn, userId } = useAuth()
   const [isDragging, setIsDragging] = useState(false)
   const [isProcessing, setIsProcessing] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -29,7 +29,7 @@ export function FileUpload({ onImportComplete, onImportStart, className }: FileU
   const workerRef = useRef<SafeWorker | null>(null)
 
   // Determine storage strategy based on authentication
-  const isAuthenticated = status === 'authenticated' && session?.user?.id
+  const isAuthenticated = !!userId
   const storageMode = isAuthenticated ? 'historical' : 'session'
 
   const processFile = useCallback(async (file: File) => {
@@ -61,7 +61,7 @@ export function FileUpload({ onImportComplete, onImportStart, className }: FileU
       setIsProcessing(false)
       setProgress(null)
     }
-  }, [onImportComplete, onImportStart, workerSupport, isAuthenticated, session])
+  }, [onImportComplete, onImportStart, workerSupport, isAuthenticated, userId])
 
   const processWithWorker = useCallback(async (content: string, file: File) => {
     const worker = await createSafeWorker()
@@ -97,8 +97,8 @@ export function FileUpload({ onImportComplete, onImportStart, className }: FileU
           } as HistoricalUploadMetadata
 
           // Route to appropriate storage based on authentication
-          if (isAuthenticated && session?.user?.id) {
-            const historicalStorage = createHistoricalStorage(session.user.id)
+          if (isAuthenticated && userId) {
+            const historicalStorage = createHistoricalStorage(userId)
             await historicalStorage.saveUpload(records, metadata, summary)
           } else {
             // Session storage metadata for compatibility
@@ -135,7 +135,7 @@ export function FileUpload({ onImportComplete, onImportStart, className }: FileU
       // Start processing
       worker.postMessage(content)
     })
-  }, [onImportComplete, isAuthenticated, session])
+  }, [onImportComplete, isAuthenticated, userId])
 
   const processWithMainThread = useCallback(async (content: string, file: File) => {
     console.warn('Using main thread parsing:', workerSupport.fallbackReason || 'Web Workers not available')
@@ -163,8 +163,8 @@ export function FileUpload({ onImportComplete, onImportStart, className }: FileU
       } as HistoricalUploadMetadata
 
       // Route to appropriate storage based on authentication
-      if (isAuthenticated && session?.user?.id) {
-        const historicalStorage = createHistoricalStorage(session.user.id)
+      if (isAuthenticated && userId) {
+        const historicalStorage = createHistoricalStorage(userId)
         await historicalStorage.saveUpload(records, metadata, summary)
       } else {
         // Session storage metadata for compatibility
@@ -180,7 +180,7 @@ export function FileUpload({ onImportComplete, onImportStart, className }: FileU
     } catch (err) {
       throw err
     }
-  }, [onImportComplete, workerSupport, isAuthenticated, session])
+  }, [onImportComplete, workerSupport, isAuthenticated, userId])
 
   const handleDrag = useCallback((e: React.DragEvent) => {
     e.preventDefault()

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useSession } from 'next-auth/react'
+import { useAuth } from '@clerk/nextjs'
 import { WatchRecord } from '@/types/records'
 import { watchHistoryStorage } from '@/lib/storage'
 import { createHistoricalStorage } from '@/lib/historical-storage'
@@ -49,7 +49,7 @@ interface StorageInfo {
 }
 
 export function StorageManagement() {
-  const { data: session, status } = useSession()
+  const { isLoaded, isSignedIn, userId } = useAuth()
   const [storageInfo, setStorageInfo] = useState<StorageInfo | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isSyncing, setIsSyncing] = useState(false)
@@ -60,7 +60,7 @@ export function StorageManagement() {
   const [validationStatus, setValidationStatus] = useState<ValidationStatus>('unknown')
   const [isValidating, setIsValidating] = useState(false)
 
-  const isAuthenticated = status === 'authenticated' && session?.user?.id
+  const isAuthenticated = !!userId
 
   useEffect(() => {
     loadStorageInfo()
@@ -74,9 +74,9 @@ export function StorageManagement() {
       
       // Load historical data if authenticated
       let historicalData: WatchRecord[] = []
-      if (isAuthenticated && session?.user?.id) {
+      if (isAuthenticated && userId) {
         try {
-          const historicalStorage = createHistoricalStorage(session.user.id)
+          const historicalStorage = createHistoricalStorage(userId)
           const aggregations = await historicalStorage.getPrecomputedAggregations()
           
           if (aggregations && aggregations.totalRecords > 0) {
@@ -132,13 +132,13 @@ export function StorageManagement() {
   }
 
   const handleSync = async () => {
-    if (!isAuthenticated || !session?.user?.id) return
+    if (!isAuthenticated || !userId) return
     
     setIsSyncing(true)
     setLastAction('Syncing to cloud...')
     
     try {
-      const result = await migrateSessionToHistorical(session.user.id)
+      const result = await migrateSessionToHistorical(userId)
       if (result.success && result.migratedRecords > 0) {
         setLastAction(`Successfully synced ${result.migratedRecords} records`)
         await loadStorageInfo()
@@ -169,11 +169,11 @@ export function StorageManagement() {
   }
 
   const handleClearHistorical = async () => {
-    if (!isAuthenticated || !session?.user?.id) return
+    if (!isAuthenticated || !userId) return
     
     if (confirm('Are you sure you want to clear historical storage? This will permanently delete your cloud data.')) {
       try {
-        const historicalStorage = createHistoricalStorage(session.user.id)
+        const historicalStorage = createHistoricalStorage(userId)
         // Note: Implement clear method in historical storage if needed
         setLastAction('Historical storage cleared')
         await loadStorageInfo()
@@ -195,7 +195,7 @@ export function StorageManagement() {
   }
 
   const runValidation = async () => {
-    if (!isAuthenticated || !session?.user?.id) {
+    if (!isAuthenticated || !userId) {
       setLastAction('Sign in required for validation')
       setTimeout(() => setLastAction(null), 3000)
       return
@@ -207,7 +207,7 @@ export function StorageManagement() {
     try {
       // Load data from both storage systems
       const sessionData = await watchHistoryStorage.getRecords()
-      const historicalStorage = createHistoricalStorage(session.user.id)
+      const historicalStorage = createHistoricalStorage(userId)
       
       let historicalData: WatchRecord[] = []
       try {

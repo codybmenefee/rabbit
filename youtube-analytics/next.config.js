@@ -15,38 +15,7 @@ const nextConfig = {
     },
   },
   // Configure fetch caching behavior
-  headers: async () => {
-    return [
-      {
-        // Disable caching for API routes that handle user data
-        source: '/api/blob/:path*',
-        headers: [
-          {
-            key: 'Cache-Control',
-            value: 'no-store, no-cache, must-revalidate, proxy-revalidate',
-          },
-          {
-            key: 'Pragma',
-            value: 'no-cache',
-          },
-          {
-            key: 'Expires',
-            value: '0',
-          },
-        ],
-      },
-      {
-        // Ensure proper CORS for blob storage
-        source: '/api/blob/upload',
-        headers: [
-          {
-            key: 'Cache-Control',
-            value: 'no-store',
-          },
-        ],
-      },
-    ]
-  },
+  headers: async () => { return [] },
   // Webpack configuration - disable cache in development to avoid corruption
   webpack: (config, { dev, isServer }) => {
     // Disable webpack persistent caching in development

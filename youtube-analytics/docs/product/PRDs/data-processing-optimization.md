@@ -85,7 +85,7 @@ The parser should identify and extract:
 **Authentication Integration**:
 
 - Only save to Blob Storage when user is authenticated with NextAuth.js
-- Use session.user.id as the unique identifier for storage paths
+- Use Clerk userId as the unique identifier for storage paths (e.g., auth().userId on server or useAuth().userId on client)
 - Implement authentication checks before any persistent storage operations
 - Provide clear messaging about authentication benefits
 

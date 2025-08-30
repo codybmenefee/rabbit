@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { useSession } from 'next-auth/react'
+import { useAuth } from '@clerk/nextjs'
 import { useRouter } from 'next/navigation'
 import { WatchRecord } from '@/types/records'
 import { watchHistoryStorage } from '@/lib/storage'
@@ -37,7 +37,7 @@ interface DataSourceInfo {
 }
 
 export function DashboardDataProvider({ className }: DashboardDataProviderProps) {
-  const { data: session, status } = useSession()
+  const { isLoaded, isSignedIn, userId } = useAuth()
   const router = useRouter()
   const [data, setData] = useState<WatchRecord[]>([])
   const [loadingState, setLoadingState] = useState<LoadingState>('loading')
@@ -52,7 +52,7 @@ export function DashboardDataProvider({ className }: DashboardDataProviderProps)
   const [showValidationDashboard, setShowValidationDashboard] = useState(false)
   const [validationStatus, setValidationStatus] = useState<ValidationStatus>('unknown')
 
-  const isAuthenticated = status === 'authenticated' && session?.user?.id
+  const isAuthenticated = !!userId
 
   const loadDataFromSources = useCallback(async (): Promise<{
     sessionData: WatchRecord[]
@@ -75,9 +75,9 @@ export function DashboardDataProvider({ className }: DashboardDataProviderProps)
     }
 
     // Try historical storage if authenticated
-    if (isAuthenticated && session?.user?.id) {
+    if (isAuthenticated && userId) {
       try {
-        const historicalStorage = createHistoricalStorage(session.user.id)
+        const historicalStorage = createHistoricalStorage(userId)
         const aggregations = await historicalStorage.getPrecomputedAggregations()
         
         if (aggregations && aggregations.totalRecords > 0) {
@@ -93,7 +93,7 @@ export function DashboardDataProvider({ className }: DashboardDataProviderProps)
     }
 
     return result
-  }, [isAuthenticated, session?.user?.id])
+  }, [isAuthenticated, userId])
 
   const detectDataConflict = useCallback((sessionData: WatchRecord[], historicalData: WatchRecord[]): boolean => {
     if (sessionData.length === 0 || historicalData.length === 0) return false
@@ -114,21 +114,21 @@ export function DashboardDataProvider({ className }: DashboardDataProviderProps)
 
     try {
       // Handle migration first if needed
-      if (isAuthenticated && session?.user?.id && !migrationAttempted) {
+      if (isAuthenticated && userId && !migrationAttempted) {
         const needsMigration = await needsSessionMigration()
         
         if (needsMigration) {
-          console.log('🔄 Migration needed for user:', session.user.id)
+          console.log('🔄 Migration needed for user:', userId)
           setLoadingState('migrating')
           
           try {
-            const migrationResult = await migrateSessionToHistorical(session.user.id)
+            const migrationResult = await migrateSessionToHistorical(userId)
             
             if (migrationResult.success && migrationResult.migratedRecords > 0) {
               console.log(`✅ Successfully migrated ${migrationResult.migratedRecords} records`)
               
               // Invalidate caches after successful migration
-              const historicalStorage = createHistoricalStorage(session.user.id)
+              const historicalStorage = createHistoricalStorage(userId)
               await historicalStorage.invalidateClientCaches()
               
               // Force router refresh to clear any stale cache
@@ -261,7 +261,7 @@ export function DashboardDataProvider({ className }: DashboardDataProviderProps)
       setError(err instanceof Error ? err.message : 'Failed to load data')
       setLoadingState('error')
     }
-  }, [isAuthenticated, session?.user?.id, migrationAttempted, loadDataFromSources, detectDataConflict])
+  }, [isAuthenticated, userId, migrationAttempted, loadDataFromSources, detectDataConflict])
 
   const handleConflictResolution = useCallback(async (action: ConflictResolutionAction, resolvedData?: WatchRecord[]) => {
     try {
@@ -299,10 +299,10 @@ export function DashboardDataProvider({ className }: DashboardDataProviderProps)
 
   // Load data when authentication status changes
   useEffect(() => {
-    if (status !== 'loading') {
+    if (isLoaded) {
       loadData()
     }
-  }, [status, loadData])
+  }, [isLoaded, loadData])
 
   const renderLoadingState = () => {
     switch (loadingState) {
@@ -476,8 +476,8 @@ export function DashboardDataProvider({ className }: DashboardDataProviderProps)
           <button
             onClick={async () => {
               // Invalidate caches before refresh if authenticated
-              if (isAuthenticated && session?.user?.id) {
-                const historicalStorage = createHistoricalStorage(session.user.id)
+              if (isAuthenticated && userId) {
+                const historicalStorage = createHistoricalStorage(userId)
                 await historicalStorage.invalidateClientCaches()
                 router.refresh()
               }

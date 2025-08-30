@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { useSession } from 'next-auth/react'
+import { useAuth } from '@clerk/nextjs'
 import { WatchRecord } from '@/types/records'
 import { migrateSessionToHistorical } from '@/lib/session-migration'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -53,7 +53,7 @@ export function StorageConflictModal({
   onResolve, 
   conflictDetails 
 }: StorageConflictModalProps) {
-  const { data: session } = useSession()
+  const { userId } = useAuth()
   const [isLoading, setIsLoading] = useState(false)
   const [sessionComparison, setSessionComparison] = useState<DataSourceComparison | null>(null)
   const [historicalComparison, setHistoricalComparison] = useState<DataSourceComparison | null>(null)
@@ -157,8 +157,8 @@ export function StorageConflictModal({
           onResolve(action, mergedData)
           break
         case 'force-sync':
-          if (session?.user?.id && conflictDetails.sessionData) {
-            await migrateSessionToHistorical(session.user.id)
+          if (userId && conflictDetails.sessionData) {
+            await migrateSessionToHistorical(userId)
             onResolve(action, conflictDetails.sessionData)
           }
           break
@@ -453,7 +453,7 @@ export function StorageConflictModal({
                 <Button
                   variant={recommendedAction === 'force-sync' ? 'default' : 'outline'}
                   onClick={() => handleResolveConflict('force-sync')}
-                  disabled={isLoading || !session?.user?.id}
+              disabled={isLoading || !userId}
                   className="justify-start h-auto p-4"
                 >
                   <div className="flex items-center gap-3">
@@ -471,7 +471,7 @@ export function StorageConflictModal({
                 </Button>
               </div>
 
-              {!session?.user?.id && (
+              {!userId && (
                 <p className="text-sm text-terminal-muted">
                   * Force sync requires authentication
                 </p>

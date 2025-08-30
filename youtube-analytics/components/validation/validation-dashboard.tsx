@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useSession } from 'next-auth/react'
+import { useAuth } from '@clerk/nextjs'
 import { 
   DataConsistencyReport, 
   ValidationStatus, 
@@ -42,14 +42,14 @@ interface ValidationDashboardProps {
 }
 
 export function ValidationDashboard({ onValidationComplete, compact = false }: ValidationDashboardProps) {
-  const { data: session, status } = useSession()
+  const { isLoaded, isSignedIn, userId } = useAuth()
   const [validationReport, setValidationReport] = useState<DataConsistencyReport | null>(null)
   const [validationHistory, setValidationHistory] = useState<ValidationHistoryEntry[]>([])
   const [isValidating, setIsValidating] = useState(false)
   const [lastValidation, setLastValidation] = useState<Date | null>(null)
   const [autoValidationEnabled, setAutoValidationEnabled] = useState(true)
 
-  const isAuthenticated = status === 'authenticated' && session?.user?.id
+  const isAuthenticated = !!userId
 
   useEffect(() => {
     loadValidationHistory()
@@ -83,7 +83,7 @@ export function ValidationDashboard({ onValidationComplete, compact = false }: V
   }
 
   const runValidationCheck = async (silent: boolean = false) => {
-    if (!isAuthenticated || !session?.user?.id) return
+    if (!isAuthenticated || !userId) return
 
     setIsValidating(true)
     if (!silent) {
@@ -93,7 +93,7 @@ export function ValidationDashboard({ onValidationComplete, compact = false }: V
     try {
       // Load data from both storage systems
       const sessionData = await watchHistoryStorage.getRecords()
-      const historicalStorage = createHistoricalStorage(session.user.id)
+      const historicalStorage = createHistoricalStorage(userId)
       
       let historicalData: WatchRecord[] = []
       try {

@@ -5,7 +5,7 @@ import { useState, useEffect } from 'react'
 // Configure caching for user data pages
 export const dynamic = 'force-dynamic'
 export const fetchCache = 'default-no-store'
-import { useSession } from 'next-auth/react'
+import { useAuth } from '@clerk/nextjs'
 import { Upload, FileText, BarChart3 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { ImportPage } from '@/components/import/ImportPage'
@@ -19,7 +19,7 @@ import { WatchRecord } from '@/types/records'
 type AppState = 'empty' | 'import' | 'populated'
 
 export default function Home() {
-  const { status } = useSession()
+  const { isLoaded, isSignedIn } = useAuth()
   const [appState, setAppState] = useState<AppState>('empty')
   const [isLoadingDemo, setIsLoadingDemo] = useState(false)
   const [isLoadingData, setIsLoadingData] = useState(true)
@@ -42,10 +42,10 @@ export default function Home() {
       }
     }
     
-    if (status !== 'loading') {
+    if (isLoaded) {
       loadExistingData()
     }
-  }, [status])
+  }, [isLoaded])
 
   const handleUpload = () => {
     setAppState('import')

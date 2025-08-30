@@ -5,7 +5,7 @@ import { useState, useEffect, useCallback } from 'react'
 // Ensure this page is always dynamically rendered to prevent caching of user data
 export const dynamic = 'force-dynamic'
 export const fetchCache = 'default-no-store'
-import { useSession } from 'next-auth/react'
+import { useAuth } from '@clerk/nextjs'
 import { WatchRecord } from '@/types/records'
 import { watchHistoryStorage } from '@/lib/storage'
 import { createHistoricalStorage } from '@/lib/historical-storage'
@@ -16,13 +16,13 @@ import { format, parseISO } from 'date-fns'
 const ITEMS_PER_PAGE = 100
 
 export default function HistoryPage() {
-  const { data: session, status } = useSession()
+  const { isLoaded, isSignedIn, userId } = useAuth()
   const [records, setRecords] = useState<WatchRecord[]>([])
   const [loading, setLoading] = useState(true)
   const [currentPage, setCurrentPage] = useState(1)
   const [totalRecords, setTotalRecords] = useState(0)
   
-  const isAuthenticated = status === 'authenticated' && session?.user?.id
+  const isAuthenticated = !!userId
 
   // Unified data loading with improved timestamp handling
   const loadData = useCallback(async () => {
@@ -34,9 +34,9 @@ export default function HistoryPage() {
       let dataSource: 'session' | 'historical' = 'session'
       
       // Use same logic as dashboard data provider
-      if (isAuthenticated && session?.user?.id) {
-        console.log('📋 Checking historical storage for user:', session.user.id)
-        const historicalStorage = createHistoricalStorage(session.user.id)
+      if (isAuthenticated && userId) {
+        console.log('📋 Checking historical storage for user:', userId)
+        const historicalStorage = createHistoricalStorage(userId)
         
         try {
           const aggregations = await historicalStorage.getPrecomputedAggregations()
@@ -79,7 +79,7 @@ export default function HistoryPage() {
     } finally {
       setLoading(false)
     }
-  }, [isAuthenticated, session?.user?.id])
+  }, [isAuthenticated, userId])
   
   // Enhanced record processing with better timestamp handling
   const processRecordsForDisplay = useCallback((allRecords: WatchRecord[]) => {
@@ -149,10 +149,10 @@ export default function HistoryPage() {
 
   // Load data on mount and when auth status changes
   useEffect(() => {
-    if (status !== 'loading') {
+    if (isLoaded) {
       loadData()
     }
-  }, [status, loadData])
+  }, [isLoaded, loadData])
 
   // Calculate pagination
   const totalPages = Math.ceil(totalRecords / ITEMS_PER_PAGE)

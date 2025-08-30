@@ -1,4 +1,4 @@
-import { head } from '@vercel/blob'
+import { get, set, del } from 'idb-keyval'
 import { WatchRecord, ImportSummary } from '@/types/records'
 import { 
   DataConsistencyValidator, 
@@ -57,213 +57,18 @@ export interface TimeSliceQuery {
 
 export class HistoricalStorage {
   private userId: string
-  private baseUrl: string
   private validator: DataConsistencyValidator
 
   constructor(userId: string) {
     this.userId = userId
     this.validator = createDataConsistencyValidator()
-    
-    // Dynamically determine base URL with better fallback logic
-    if (typeof window !== 'undefined') {
-      // Client-side: use current origin
-      this.baseUrl = window.location.origin
-    } else {
-      // Server-side: use environment variables with proper handling
-      if (process.env.NEXTAUTH_URL) {
-        this.baseUrl = process.env.NEXTAUTH_URL
-      } else if (process.env.VERCEL_URL) {
-        // VERCEL_URL doesn't include protocol, add it
-        this.baseUrl = `https://${process.env.VERCEL_URL}`
-      } else {
-        this.baseUrl = 'http://localhost:3000'
-      }
-    }
-    
-    console.log(`HistoricalStorage initialized with baseUrl: ${this.baseUrl}`)
   }
 
-  private getBlobPath(fileName: string): string {
-    return `users/${this.userId}/${fileName}`
+  private key(name: string) {
+    return `historical:${this.userId}:${name}`
   }
 
-  private async uploadBlob(path: string, data: any, retries: number = 3): Promise<string> {
-    let lastError: Error | null = null
-    
-    for (let attempt = 0; attempt < retries; attempt++) {
-      try {
-        const response = await fetch('/api/blob/upload', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ path, data }),
-          signal: AbortSignal.timeout(30000) // 30 second timeout
-        })
-
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => ({ error: 'Unknown error' }))
-          
-          // Don't retry on client errors (4xx)
-          if (response.status >= 400 && response.status < 500) {
-            throw new Error(`Upload failed: ${errorData.error || response.statusText}`)
-          }
-          
-          // Retry on server errors (5xx)
-          lastError = new Error(`Upload failed (${response.status}): ${errorData.error || response.statusText}`)
-          
-          if (attempt < retries - 1) {
-            const delay = Math.min(1000 * Math.pow(2, attempt), 10000) // Exponential backoff with max 10s
-            console.log(`Retrying upload in ${delay}ms (attempt ${attempt + 1}/${retries})`)
-            await new Promise(resolve => setTimeout(resolve, delay))
-            continue
-          }
-        } else {
-          const result = await response.json()
-          return result.url
-        }
-      } catch (error: any) {
-        lastError = error
-        
-        // Don't retry on abort/timeout
-        if (error.name === 'AbortError') {
-          throw new Error('Upload timeout: Request took too long')
-        }
-        
-        if (attempt < retries - 1) {
-          const delay = Math.min(1000 * Math.pow(2, attempt), 10000)
-          console.log(`Retrying upload after error in ${delay}ms (attempt ${attempt + 1}/${retries})`)
-          await new Promise(resolve => setTimeout(resolve, delay))
-          continue
-        }
-      }
-    }
-    
-    throw lastError || new Error('Upload failed after retries')
-  }
-
-  private async downloadBlob<T>(apiUrl: string, useCache: boolean = false, retries: number = 3): Promise<T | null> {
-    let lastError: Error | null = null
-    
-    for (let attempt = 0; attempt < retries; attempt++) {
-      try {
-        console.log(`Fetching blob URL from API: ${apiUrl} (attempt ${attempt + 1}/${retries})`)
-        
-        // Configure fetch with cache control and timeout
-        const fetchOptions: RequestInit = {
-          method: 'GET',
-          headers: {
-            'Cache-Control': useCache ? 'max-age=300' : 'no-cache, no-store, must-revalidate',
-            'Pragma': 'no-cache'
-          },
-          signal: AbortSignal.timeout(20000) // 20 second timeout
-        }
-        
-        // First, get the blob URL from our API
-        const apiResponse = await fetch(apiUrl, fetchOptions)
-        
-        if (!apiResponse.ok) {
-          const errorData = await apiResponse.json().catch(() => ({ error: 'Unknown error' }))
-          
-          // Handle 404 - blob doesn't exist (don't retry)
-          if (apiResponse.status === 404) {
-            console.log('Blob not found (404)')
-            return null
-          }
-          
-          // Don't retry on client errors (4xx)
-          if (apiResponse.status >= 400 && apiResponse.status < 500) {
-            console.warn(`Client error getting blob URL: ${apiResponse.status} - ${errorData.error || apiResponse.statusText}`)
-            return null
-          }
-          
-          // Retry on server errors (5xx)
-          lastError = new Error(`API error (${apiResponse.status}): ${errorData.error || apiResponse.statusText}`)
-          
-          if (attempt < retries - 1) {
-            const delay = Math.min(1000 * Math.pow(2, attempt), 10000)
-            console.log(`Retrying API call in ${delay}ms`)
-            await new Promise(resolve => setTimeout(resolve, delay))
-            continue
-          }
-        }
-        
-        const apiData = await apiResponse.json()
-        
-        // Check if we got the content directly (new format) or a URL (legacy format)
-        if (apiData.content) {
-          console.log('Successfully received blob content from API')
-          return apiData.content as T
-        } else if (apiData.url) {
-          // Legacy fallback: fetch from URL (though this may have CORS issues)
-          const blobUrl = apiData.url
-          console.log('Downloading blob data from URL:', blobUrl)
-          
-          const blobResponse = await fetch(blobUrl, {
-            headers: {
-              'Cache-Control': useCache ? 'max-age=300' : 'no-cache, no-store, must-revalidate'
-            },
-            signal: AbortSignal.timeout(30000)
-          })
-          
-          if (!blobResponse.ok) {
-            lastError = new Error(`Failed to download blob: ${blobResponse.status} ${blobResponse.statusText}`)
-            
-            if (attempt < retries - 1) {
-              const delay = Math.min(1000 * Math.pow(2, attempt), 10000)
-              console.log(`Retrying blob download in ${delay}ms`)
-              await new Promise(resolve => setTimeout(resolve, delay))
-              continue
-            }
-          }
-          
-          const data = await blobResponse.text()
-          const parsed = JSON.parse(data) as T
-          console.log('Successfully downloaded and parsed blob data from URL')
-          return parsed
-        } else {
-          console.warn('No content or URL returned from API')
-          return null
-        }
-        
-      } catch (error: any) {
-        lastError = error
-        
-        // Don't retry on abort/timeout
-        if (error.name === 'AbortError') {
-          console.error('Request timeout')
-          return null
-        }
-        
-        // Don't retry on JSON parse errors
-        if (error instanceof SyntaxError) {
-          console.error('Invalid JSON in blob data:', error)
-          return null
-        }
-        
-        if (attempt < retries - 1) {
-          const delay = Math.min(1000 * Math.pow(2, attempt), 10000)
-          console.log(`Retrying after error in ${delay}ms: ${error.message}`)
-          await new Promise(resolve => setTimeout(resolve, delay))
-          continue
-        }
-      }
-    }
-    
-    console.error('Failed to download blob after retries:', lastError)
-    return null
-  }
-
-  private async blobExists(path: string): Promise<boolean> {
-    try {
-      await head(path, {
-        token: process.env.BLOB_READ_WRITE_TOKEN
-      })
-      return true
-    } catch {
-      return false
-    }
-  }
+  // Removed remote blob utilities; operating fully locally
 
   /**
    * Save new upload while preserving historical data
@@ -275,49 +80,19 @@ export class HistoricalStorage {
   ): Promise<void> {
     console.log(`Starting saveUpload for ${newRecords.length} records`)
     try {
-      // 1. Save individual upload for audit purposes
-      const uploadPath = this.getBlobPath(`uploads/${metadata.uploadedAt}.json`)
-      const uploadData = {
-        records: newRecords,
-        metadata,
-        summary
-      }
-      await this.uploadBlob(uploadPath, uploadData)
+      const existing = (await get<MasterData>(this.key('master'))) || this.createEmptyMasterData()
+      const mergedRecords = this.mergeAndDeduplicateRecords(existing.records, newRecords)
 
-      // 2. Retrieve existing master data or create new
-      let masterData: MasterData
-      const masterPath = this.getBlobPath('master.json')
-      
-      if (await this.blobExists(masterPath)) {
-        const existingMasterUrl = `${this.baseUrl}/api/blob?path=${masterPath}`
-        const existing = await this.downloadBlob<MasterData>(existingMasterUrl, false) // Never cache during uploads
-        masterData = existing || this.createEmptyMasterData()
-      } else {
-        masterData = this.createEmptyMasterData()
-      }
-
-      // 3. Merge and deduplicate records
-      const mergedRecords = this.mergeAndDeduplicateRecords(masterData.records, newRecords)
-      
-      // 4. Update master data
       const updatedMasterData: MasterData = {
         records: mergedRecords,
         lastUpdated: new Date().toISOString(),
-        totalUploads: masterData.totalUploads + 1,
-        metadata: [...masterData.metadata, metadata]
+        totalUploads: existing.totalUploads + 1,
+        metadata: [...existing.metadata, metadata]
       }
 
-      // 5. Save updated master data
-      await this.uploadBlob(masterPath, updatedMasterData)
-
-      // 6. Precompute and save aggregations
-      console.log(`Computing aggregations for ${mergedRecords.length} total records`)
+      await set(this.key('master'), updatedMasterData)
       const aggregations = this.computeAggregations(mergedRecords)
-      console.log('Computed aggregations:', aggregations)
-      const aggregationsPath = this.getBlobPath('aggregations.json')
-      await this.uploadBlob(aggregationsPath, aggregations)
-      console.log('Successfully saved aggregations to blob storage')
-
+      await set(this.key('aggregations'), aggregations)
     } catch (error) {
       console.error('Failed to save upload to historical storage:', error)
       throw new Error(`Failed to save historical data: ${error instanceof Error ? error.message : 'Unknown error'}`)
@@ -329,65 +104,9 @@ export class HistoricalStorage {
    */
   async queryTimeSlice(query: TimeSliceQuery): Promise<WatchRecord[]> {
     try {
-      // Check cache first
-      const cacheKey = this.generateCacheKey(query)
-      const cachePath = this.getBlobPath(`cache/${cacheKey}.json`)
-      
-      if (await this.blobExists(cachePath)) {
-        const cacheUrl = `${this.baseUrl}/api/blob?path=${cachePath}`
-        const cached = await this.downloadBlob<WatchRecord[]>(cacheUrl, true) // Allow cache for time slice queries
-        if (cached) return cached
-      }
-
-      // Load master data (never cache time slice queries for fresh data)
-      const masterPath = this.getBlobPath('master.json')
-      const masterUrl = `${this.baseUrl}/api/blob?path=${masterPath}`
-      const masterData = await this.downloadBlob<MasterData>(masterUrl, false)
-      
-      if (!masterData) return []
-
-      // Filter records based on query
-      let filtered = masterData.records
-
-      if (query.startDate || query.endDate) {
-        filtered = filtered.filter(record => {
-          if (!record.watchedAt) return false
-          const watchDate = new Date(record.watchedAt)
-          
-          if (query.startDate && watchDate < query.startDate) return false
-          if (query.endDate && watchDate > query.endDate) return false
-          
-          return true
-        })
-      }
-
-      if (query.product) {
-        filtered = filtered.filter(record => record.product === query.product)
-      }
-
-      if (query.channels && query.channels.length > 0) {
-        filtered = filtered.filter(record => 
-          record.channelTitle && query.channels!.includes(record.channelTitle)
-        )
-      }
-
-      if (query.topics && query.topics.length > 0) {
-        filtered = filtered.filter(record =>
-          record.topics.some(topic => query.topics!.includes(topic))
-        )
-      }
-
-      // Cache substantial queries (>100 records or date-based)
-      if (filtered.length > 100 || query.startDate || query.endDate) {
-        await this.uploadBlob(cachePath, filtered).catch(console.warn)
-      }
-
-      return filtered.sort((a, b) => {
-        if (!a.watchedAt) return 1
-        if (!b.watchedAt) return -1
-        return new Date(b.watchedAt).getTime() - new Date(a.watchedAt).getTime()
-      })
-
+      const master = await get<MasterData>(this.key('master'))
+      if (!master) return []
+      return this.applyFilters(master.records, query)
     } catch (error) {
       console.error('Failed to query time slice:', error)
       return []
@@ -397,11 +116,15 @@ export class HistoricalStorage {
   /**
    * Get precomputed aggregations for fast dashboard loading
    */
-  async getPrecomputedAggregations(useCache: boolean = false): Promise<PrecomputedAggregations | null> {
+  async getPrecomputedAggregations(): Promise<PrecomputedAggregations | null> {
     try {
-      const aggregationsPath = this.getBlobPath('aggregations.json')
-      const aggregationsUrl = `${this.baseUrl}/api/blob?path=${aggregationsPath}`
-      return await this.downloadBlob<PrecomputedAggregations>(aggregationsUrl, useCache)
+      const agg = await get<PrecomputedAggregations>(this.key('aggregations'))
+      if (agg) return agg
+      const master = await get<MasterData>(this.key('master'))
+      if (!master) return null
+      const computed = this.computeAggregations(master.records)
+      await set(this.key('aggregations'), computed)
+      return computed
     } catch (error) {
       console.error('Failed to get precomputed aggregations:', error)
       return null
@@ -411,12 +134,10 @@ export class HistoricalStorage {
   /**
    * Get upload history and metadata
    */
-  async getUploadHistory(useCache: boolean = true): Promise<HistoricalUploadMetadata[]> {
+  async getUploadHistory(): Promise<HistoricalUploadMetadata[]> {
     try {
-      const masterPath = this.getBlobPath('master.json')
-      const masterUrl = `${this.baseUrl}/api/blob?path=${masterPath}`
-      const masterData = await this.downloadBlob<MasterData>(masterUrl, useCache)
-      return masterData?.metadata || []
+      const master = await get<MasterData>(this.key('master'))
+      return master?.metadata || []
     } catch (error) {
       console.error('Failed to get upload history:', error)
       return []
@@ -513,6 +234,33 @@ export class HistoricalStorage {
     }
   }
 
+  private applyFilters(records: WatchRecord[], query: TimeSliceQuery): WatchRecord[] {
+    let filtered = records
+    if (query.startDate || query.endDate) {
+      filtered = filtered.filter(r => {
+        if (!r.watchedAt) return false
+        const d = new Date(r.watchedAt)
+        if (query.startDate && d < query.startDate) return false
+        if (query.endDate && d > query.endDate) return false
+        return true
+      })
+    }
+    if (query.product) {
+      filtered = filtered.filter(r => r.product === query.product)
+    }
+    if (query.channels && query.channels.length > 0) {
+      filtered = filtered.filter(r => r.channelTitle && query.channels!.includes(r.channelTitle))
+    }
+    if (query.topics && query.topics.length > 0) {
+      filtered = filtered.filter(r => r.topics.some(t => query.topics!.includes(t)))
+    }
+    return filtered.sort((a, b) => {
+      if (!a.watchedAt) return 1
+      if (!b.watchedAt) return -1
+      return new Date(b.watchedAt).getTime() - new Date(a.watchedAt).getTime()
+    })
+  }
+
   private generateCacheKey(query: TimeSliceQuery): string {
     const parts = [
       query.startDate?.toISOString().split('T')[0] || 'any',
@@ -530,44 +278,18 @@ export class HistoricalStorage {
    */
   async invalidateClientCaches(): Promise<void> {
     try {
-      // Clear any cached aggregations
-      const aggregationsPath = this.getBlobPath('aggregations.json')
-      const aggregationsUrl = `${this.baseUrl}/api/blob?path=${aggregationsPath}`
-      
-      // Force refresh by making a no-cache request
-      await fetch(aggregationsUrl, {
-        method: 'GET',
-        headers: {
-          'Cache-Control': 'no-cache, no-store, must-revalidate',
-          'Pragma': 'no-cache'
-        }
-      })
-      
-      console.log('✅ Client caches invalidated for user:', this.userId)
+      await del(this.key('aggregations'))
+      console.log('✅ Cleared local aggregations cache for user:', this.userId)
     } catch (error) {
-      console.warn('⚠️ Failed to invalidate client caches:', error)
+      console.warn('⚠️ Failed to clear local aggregations cache:', error)
     }
   }
 
   /**
    * Force refresh of a specific blob by cache busting
    */
-  async refreshBlob(fileName: string): Promise<void> {
-    try {
-      const blobPath = this.getBlobPath(fileName)
-      const blobUrl = `${this.baseUrl}/api/blob?path=${blobPath}&t=${Date.now()}`
-      
-      await fetch(blobUrl, {
-        method: 'GET',
-        headers: {
-          'Cache-Control': 'no-cache, no-store, must-revalidate'
-        }
-      })
-      
-      console.log(`✅ Refreshed blob: ${fileName}`)
-    } catch (error) {
-      console.warn(`⚠️ Failed to refresh blob ${fileName}:`, error)
-    }
+  async refreshBlob(_fileName: string): Promise<void> {
+    // No-op in local mode
   }
 
   /**
