@@ -1,28 +1,27 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useSession } from 'next-auth/react'
 import { WatchRecord } from '@/types/records'
-import { watchHistoryStorage } from '@/lib/storage'
-import { createHistoricalStorage } from '@/lib/historical-storage'
 import { migrateSessionToHistorical } from '@/lib/session-migration'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { 
-  Database, 
-  Cloud, 
-  Merge, 
-  RefreshCw, 
-  AlertTriangle, 
-  CheckCircle, 
+import {
+  Database,
+  Cloud,
+  Merge,
+  RefreshCw,
+  AlertTriangle,
+  CheckCircle,
   Info,
   Calendar,
   BarChart3,
   Users,
   Hash
 } from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
 
 interface StorageConflictModalProps {
@@ -56,18 +55,11 @@ export function StorageConflictModal({
 }: StorageConflictModalProps) {
   const { data: session } = useSession()
   const [isLoading, setIsLoading] = useState(false)
-  const [selectedAction, setSelectedAction] = useState<ConflictResolutionAction | null>(null)
   const [sessionComparison, setSessionComparison] = useState<DataSourceComparison | null>(null)
   const [historicalComparison, setHistoricalComparison] = useState<DataSourceComparison | null>(null)
   const [detailedAnalysis, setDetailedAnalysis] = useState(false)
 
-  useEffect(() => {
-    if (isOpen && conflictDetails.sessionData && conflictDetails.historicalData) {
-      analyzeDataSources()
-    }
-  }, [isOpen, conflictDetails])
-
-  const analyzeDataSources = async () => {
+  const analyzeDataSources = useCallback(async () => {
     if (!conflictDetails.sessionData || !conflictDetails.historicalData) return
 
     // Analyze session data
@@ -77,7 +69,13 @@ export function StorageConflictModal({
     // Analyze historical data  
     const historicalAnalysis = analyzeDataSource(conflictDetails.historicalData)
     setHistoricalComparison(historicalAnalysis)
-  }
+  }, [conflictDetails])
+
+  useEffect(() => {
+    if (isOpen && conflictDetails.sessionData && conflictDetails.historicalData) {
+      analyzeDataSources()
+    }
+  }, [isOpen, conflictDetails, analyzeDataSources])
 
   const analyzeDataSource = (data: WatchRecord[]): DataSourceComparison => {
     if (data.length === 0) {
@@ -145,7 +143,6 @@ export function StorageConflictModal({
 
   const handleResolveConflict = async (action: ConflictResolutionAction) => {
     setIsLoading(true)
-    setSelectedAction(action)
 
     try {
       switch (action) {
@@ -214,18 +211,16 @@ export function StorageConflictModal({
     return 'merge-data'
   }
 
-  const DataSourceCard = ({ 
-    title, 
-    icon: Icon, 
-    comparison, 
-    isRecommended, 
-    action 
+  const DataSourceCard = ({
+    title,
+    icon: Icon,
+    comparison,
+    isRecommended
   }: {
     title: string
-    icon: React.ComponentType<any>
+    icon: LucideIcon
     comparison: DataSourceComparison | null
     isRecommended: boolean
-    action: ConflictResolutionAction
   }) => (
     <Card className={`relative ${isRecommended ? 'ring-2 ring-signal-green-500' : ''}`}>
       {isRecommended && (
@@ -340,10 +335,10 @@ export function StorageConflictModal({
               <div className="flex items-start gap-3">
                 <Info className="h-5 w-5 text-yellow-500 mt-0.5" />
                 <div>
-                  <h3 className="font-semibold text-yellow-500 mb-2">What's happening?</h3>
+                  <h3 className="font-semibold text-yellow-500 mb-2">What&apos;s happening?</h3>
                   <p className="text-sm text-terminal-muted mb-3">
-                    We detected conflicting data between your session storage (temporary) and historical storage (permanent). 
-                    This usually happens when new data hasn't been synced yet, or when there are network issues.
+                    We detected conflicting data between your session storage (temporary) and historical storage (permanent).
+                    This usually happens when new data hasn&apos;t been synced yet, or when there are network issues.
                   </p>
                   <div className="flex items-center gap-4 text-sm">
                     <span className="flex items-center gap-2">
@@ -367,14 +362,12 @@ export function StorageConflictModal({
               icon={Database}
               comparison={sessionComparison}
               isRecommended={recommendedAction === 'use-session' || recommendedAction === 'force-sync'}
-              action="use-session"
             />
             <DataSourceCard
               title="Historical Storage"
               icon={Cloud}
               comparison={historicalComparison}
               isRecommended={recommendedAction === 'use-historical'}
-              action="use-historical"
             />
           </div>
 
