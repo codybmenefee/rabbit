@@ -43,62 +43,65 @@ export async function GET(request: NextRequest) {
       const blob = await head(path, {
         token: process.env.BLOB_READ_WRITE_TOKEN
       })
-      
+
       // Fetch the actual blob content to avoid CORS issues
       console.log(`Fetching blob content from: ${blob.url}`)
       const blobResponse = await fetch(blob.url)
-      
+
       if (!blobResponse.ok) {
         throw new Error(`Failed to fetch blob content: ${blobResponse.status}`)
       }
-      
+
       const content = await blobResponse.text()
-      
+
       // Return the actual content instead of URL to avoid CORS issues
-      const response = NextResponse.json({ 
+      const response = NextResponse.json({
         content: JSON.parse(content),
         lastModified: blob.uploadedAt,
-        size: blob.size 
+        size: blob.size
       })
-      
+
       // Set cache control headers to prevent caching of user data
       response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate')
       response.headers.set('Pragma', 'no-cache')
       response.headers.set('Expires', '0')
       response.headers.set('ETag', `"${blob.pathname}-${blob.uploadedAt}"`) // For cache validation
-      
+
       return response
-    } catch (blobError: any) {
+    } catch (blobError: unknown) {
       // Blob doesn't exist or other Blob-specific error
       console.error('Blob retrieval error:', blobError)
-      
-      if (blobError?.message?.includes('not found')) {
-        const response = NextResponse.json({ 
+
+      if (blobError instanceof Error && blobError.message.includes('not found')) {
+        const response = NextResponse.json({
           error: 'Blob not found',
-          path: path 
+          path: path
         }, { status: 404 })
         response.headers.set('Cache-Control', 'no-store')
         return response
       }
-      
+
       // Handle token/auth errors
-      if (blobError?.message?.includes('token') || blobError?.message?.includes('unauthorized')) {
-        return NextResponse.json({ 
+      if (
+        blobError instanceof Error &&
+        (blobError.message.includes('token') || blobError.message.includes('unauthorized'))
+      ) {
+        return NextResponse.json({
           error: 'Storage authentication failed',
           details: 'Failed to authenticate with Vercel Blob storage'
         }, { status: 503 })
       }
-      
+
       throw blobError // Re-throw for general error handler
     }
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Blob API error:', error)
-    
+
     // Provide more detailed error information
-    return NextResponse.json({ 
+    return NextResponse.json({
       error: 'Internal server error',
-      message: error?.message || 'Unknown error occurred',
+      message: error instanceof Error ? error.message : 'Unknown error occurred',
       timestamp: new Date().toISOString()
     }, { status: 500 })
   }

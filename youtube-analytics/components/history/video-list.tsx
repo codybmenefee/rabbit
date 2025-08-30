@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from 'react'
 import { format, parseISO, isValid } from 'date-fns'
-import { Play, ExternalLink, Clock, Tag, CheckSquare, Square, User, Calendar } from 'lucide-react'
+import { Play, ExternalLink, CheckSquare, Square, User, Calendar } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -26,8 +26,8 @@ export function VideoList({ records, selectedRecords, onSelectionChange }: Video
   // Sort and paginate records
   const sortedRecords = useMemo(() => {
     const sorted = [...records].sort((a, b) => {
-      let aVal: any = a[sortField]
-      let bVal: any = b[sortField]
+      const aVal = a[sortField]
+      const bVal = b[sortField]
 
       // Handle null values
       if (aVal == null && bVal == null) return 0
@@ -35,14 +35,12 @@ export function VideoList({ records, selectedRecords, onSelectionChange }: Video
       if (bVal == null) return -1
 
       // Convert to string for consistent comparison
-      aVal = String(aVal).toLowerCase()
-      bVal = String(bVal).toLowerCase()
+      const aStr = String(aVal).toLowerCase()
+      const bStr = String(bVal).toLowerCase()
 
-      if (sortOrder === 'asc') {
-        return aVal < bVal ? -1 : aVal > bVal ? 1 : 0
-      } else {
-        return aVal > bVal ? -1 : aVal < bVal ? 1 : 0
-      }
+      return sortOrder === 'asc'
+        ? aStr.localeCompare(bStr)
+        : bStr.localeCompare(aStr)
     })
 
     return sorted

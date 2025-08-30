@@ -148,7 +148,7 @@ export function HistorySearchFilters({
                 <span>Active filters:</span>
                 {searchQuery && (
                   <span className="px-2 py-1 bg-white/[0.08] rounded">
-                    Search: "{searchQuery}"
+                    Search: &quot;{searchQuery}&quot;
                   </span>
                 )}
                 {getFilterSummary() && (

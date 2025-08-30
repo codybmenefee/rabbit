@@ -65,28 +65,31 @@ export async function POST(request: NextRequest) {
     
     return response
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Blob upload error:', error)
-    
+
     // Handle specific Blob errors
-    if (error?.message?.includes('token') || error?.message?.includes('unauthorized')) {
-      return NextResponse.json({ 
+    if (
+      error instanceof Error &&
+      (error.message.includes('token') || error.message.includes('unauthorized'))
+    ) {
+      return NextResponse.json({
         error: 'Storage authentication failed',
         details: 'Failed to authenticate with Vercel Blob storage'
       }, { status: 503 })
     }
-    
-    if (error?.message?.includes('limit') || error?.message?.includes('quota')) {
-      return NextResponse.json({ 
+
+    if (error instanceof Error && (error.message.includes('limit') || error.message.includes('quota'))) {
+      return NextResponse.json({
         error: 'Storage limit exceeded',
         details: 'Vercel Blob storage limit has been reached'
       }, { status: 507 })
     }
-    
+
     // Provide more detailed error information
-    return NextResponse.json({ 
+    return NextResponse.json({
       error: 'Internal server error',
-      message: error?.message || 'Unknown error occurred',
+      message: error instanceof Error ? error.message : 'Unknown error occurred',
       timestamp: new Date().toISOString()
     }, { status: 500 })
   }
