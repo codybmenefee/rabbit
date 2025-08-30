@@ -1,20 +1,26 @@
-import { 
-  computeKPIMetrics, 
-  computeMonthlyTrend, 
-  computeTopChannels, 
-  computeDayTimeHeatmap, 
+import {
+  computeKPIMetrics,
+  computeMonthlyTrend,
+  computeTopChannels,
+  computeDayTimeHeatmap,
   computeTopicsLeaderboard,
   applyFilters,
   deriveTopics,
   normalizeWatchRecord
-} from './aggregations'
-import { 
-  getAllFixtures, 
-  generateDevelopmentSampleData, 
+} from '@/lib/aggregations'
+import {
+  getAllFixtures,
+  generateDevelopmentSampleData,
   getEdgeCaseFixtures,
-  getMissingDataFixtures 
-} from './fixtures'
-import { WatchRecord, FilterOptions } from '@/types/records'
+  getMissingDataFixtures
+} from '@/lib/fixtures'
+import {
+  FilterOptions,
+  MonthlyCount,
+  ChannelMetrics,
+  DayHourMatrix,
+  TopicCount
+} from '@/types/records'
 
 // Test suite for aggregation functions
 export function runAggregationTests() {
@@ -82,10 +88,10 @@ function testMonthlyTrends() {
   })
   
   console.log(`   Generated ${trends.length} monthly data points`)
-  console.log(`   Sample months: ${trends.slice(0, 3).map(t => t.month).join(', ')}`)
+  console.log(`   Sample months: ${trends.slice(0, 3).map((t: MonthlyCount) => t.month).join(', ')}`)
   
   // Validate data integrity
-  trends.forEach((trend, index) => {
+  trends.forEach((trend: MonthlyCount, index: number) => {
     if (trend.videos < 0) console.error(`❌ Month ${index} has negative video count`)
     if (trend.uniqueChannels < 0) console.error(`❌ Month ${index} has negative channel count`)
   })
@@ -103,7 +109,7 @@ function testTopChannels() {
   }, 5)
   
   console.log(`   Found ${topChannels.length} top channels`)
-  topChannels.forEach((channel, index) => {
+  topChannels.forEach((channel: ChannelMetrics, index: number) => {
     console.log(`   ${index + 1}. ${channel.channel}: ${channel.videoCount} videos (${channel.percentage.toFixed(1)}%)`)
   })
   
@@ -114,7 +120,10 @@ function testTopChannels() {
     }
   }
   
-  const totalPercentage = topChannels.reduce((sum, c) => sum + c.percentage, 0)
+  const totalPercentage = topChannels.reduce(
+    (sum: number, c: ChannelMetrics) => sum + c.percentage,
+    0
+  )
   if (totalPercentage > 100) console.error('❌ Total percentage exceeds 100%')
   
   console.log('   ✓ Top channels computed successfully\n')
@@ -137,10 +146,14 @@ function testDayTimeHeatmap() {
   }
   
   // Find peak activity
-  const maxActivity = Math.max(...heatmap.map(h => h.value))
-  const peakHours = heatmap.filter(h => h.value === maxActivity)
+  const maxActivity = Math.max(...heatmap.map((h: DayHourMatrix) => h.value))
+  const peakHours = heatmap.filter((h: DayHourMatrix) => h.value === maxActivity)
   console.log(`   Peak activity: ${maxActivity} videos`)
-  console.log(`   Peak times: ${peakHours.map(h => `${h.day} ${h.hour}:00`).join(', ')}`)
+  console.log(
+    `   Peak times: ${peakHours
+      .map((h: DayHourMatrix) => `${h.day} ${h.hour}:00`)
+      .join(', ')}`
+  )
   
   console.log('   ✓ Day/time heatmap computed successfully\n')
 }
@@ -155,8 +168,10 @@ function testTopicsLeaderboard() {
   })
   
   console.log(`   Found ${topics.length} unique topics`)
-  topics.slice(0, 5).forEach((topic, index) => {
-    console.log(`   ${index + 1}. ${topic.topic}: ${topic.count} videos (${topic.percentage.toFixed(1)}%, ${topic.trend})`)
+  topics.slice(0, 5).forEach((topic: TopicCount, index: number) => {
+    console.log(
+      `   ${index + 1}. ${topic.topic}: ${topic.count} videos (${topic.percentage.toFixed(1)}%, ${topic.trend})`
+    )
   })
   
   // Validate sorting and data
@@ -211,18 +226,23 @@ function testFilterApplication() {
 function testTopicDerivation() {
   console.log('7️⃣ Testing Topic Derivation...')
   
-  const testCases = [
-    { title: "JavaScript Tutorial for Beginners", channel: "Code Academy", expected: ["Technology"] },
-    { title: "Bitcoin Price Analysis 2024", channel: "Crypto News", expected: ["Finance"] },
-    { title: "Election Results Live Stream", channel: "Political Updates", expected: ["Politics"] },
-    { title: "Marvel Movie Review", channel: "Entertainment Weekly", expected: ["Entertainment"] },
-    { title: "Pasta Recipe Italian Style", channel: "Chef's Kitchen", expected: ["Cooking"] },
-    { title: "Random Video", channel: "Random Channel", expected: ["Other"] }
+  interface TopicTestCase {
+    title: string
+    channel: string
+    expected: string[]
+  }
+  const testCases: TopicTestCase[] = [
+    { title: 'JavaScript Tutorial for Beginners', channel: 'Code Academy', expected: ['Technology'] },
+    { title: 'Bitcoin Price Analysis 2024', channel: 'Crypto News', expected: ['Finance'] },
+    { title: 'Election Results Live Stream', channel: 'Political Updates', expected: ['Politics'] },
+    { title: 'Marvel Movie Review', channel: 'Entertainment Weekly', expected: ['Entertainment'] },
+    { title: 'Pasta Recipe Italian Style', channel: "Chef's Kitchen", expected: ['Cooking'] },
+    { title: 'Random Video', channel: 'Random Channel', expected: ['Other'] }
   ]
-  
-  testCases.forEach(testCase => {
+
+  testCases.forEach((testCase: TopicTestCase) => {
     const derivedTopics = deriveTopics(testCase.title, testCase.channel)
-    const hasExpected = testCase.expected.some(expected => 
+    const hasExpected = testCase.expected.some((expected: string) =>
       derivedTopics.includes(expected)
     )
     

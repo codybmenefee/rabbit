@@ -1,5 +1,6 @@
 import { readFileSync } from 'fs'
-import { YouTubeHistoryParser } from './parser'
+import { YouTubeHistoryParser } from '@/lib/parser'
+import type { WatchRecord } from '@/types/records'
 
 // Simple test script to validate parser functionality
 export async function testParser() {
@@ -19,7 +20,7 @@ export async function testParser() {
       return
     }
 
-    const records = parser.parseHTML(content)
+    const records: WatchRecord[] = await parser.parseHTML(content)
     console.log(`✅ Parsed ${records.length} records`)
 
     if (records.length === 0) {
@@ -42,25 +43,28 @@ export async function testParser() {
     console.log(`  Date range: ${summary.dateRange.start?.toDateString()} - ${summary.dateRange.end?.toDateString()}`)
 
     // Check for common issues
-    const recordsWithoutTimestamps = records.filter(r => !r.watchedAt)
-    const recordsWithoutVideos = records.filter(r => !r.videoTitle && !r.videoUrl)
+    const recordsWithoutTimestamps = records.filter((r: WatchRecord) => !r.watchedAt)
+    const recordsWithoutVideos = records.filter((r: WatchRecord) => !r.videoTitle && !r.videoUrl)
     
     console.log('\n🔍 Data quality:')
     console.log(`  Records without timestamps: ${recordsWithoutTimestamps.length}`)
     console.log(`  Records without video info: ${recordsWithoutVideos.length}`)
 
     // Show some topic distributions
-    const allTopics = records.flatMap(r => r.topics)
-    const topicCounts = allTopics.reduce((acc, topic) => {
-      acc[topic] = (acc[topic] || 0) + 1
-      return acc
-    }, {} as Record<string, number>)
+    const allTopics = records.flatMap((r: WatchRecord) => r.topics)
+    const topicCounts = allTopics.reduce(
+      (acc: Record<string, number>, topic: string) => {
+        acc[topic] = (acc[topic] || 0) + 1
+        return acc
+      },
+      {} as Record<string, number>
+    )
 
     console.log('\n🏷️  Topic distribution:')
     Object.entries(topicCounts)
-      .sort(([,a], [,b]) => b - a)
+      .sort(([, a]: [string, number], [, b]: [string, number]) => b - a)
       .slice(0, 5)
-      .forEach(([topic, count]) => {
+      .forEach(([topic, count]: [string, number]) => {
         console.log(`  ${topic}: ${count}`)
       })
 
