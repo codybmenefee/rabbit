@@ -1,5 +1,5 @@
-import { NextAuthOptions } from 'next-auth'
 import GoogleProvider from 'next-auth/providers/google'
+import type { NextAuthOptions } from 'next-auth'
 
 export const authOptions: NextAuthOptions = {
   providers: [
@@ -11,13 +11,14 @@ export const authOptions: NextAuthOptions = {
   callbacks: {
     session: async ({ session, token }) => {
       if (session?.user) {
-        session.user.id = token.sub!
+        // Add stable user id to the session object
+        ;(session.user as any).id = token.sub!
       }
       return session
     },
     jwt: async ({ user, token }) => {
       if (user) {
-        token.uid = user.id
+        ;(token as any).uid = (user as any).id
       }
       return token
     },
