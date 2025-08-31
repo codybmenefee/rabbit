@@ -11,9 +11,7 @@ import { Button } from '@/components/ui/button'
 import { ImportPage } from '@/components/import/ImportPage'
 import { ImportErrorBoundary } from '@/components/import/ErrorBoundary'
 import { DashboardDataProvider } from '@/components/dashboard/dashboard-data-provider'
-import { watchHistoryStorage } from '@/lib/storage'
-import { generateDemoData } from '@/lib/demo-data'
-import { WatchRecord } from '@/types/records'
+import { ConvexClerkHealthBanner } from '@/components/dev/convex-clerk-health'
 
 // State management for real data
 type AppState = 'empty' | 'import' | 'populated'
@@ -21,31 +19,15 @@ type AppState = 'empty' | 'import' | 'populated'
 export default function Home() {
   const { isLoaded, isSignedIn } = useAuth()
   const [appState, setAppState] = useState<AppState>('empty')
-  const [isLoadingDemo, setIsLoadingDemo] = useState(false)
-  const [isLoadingData, setIsLoadingData] = useState(true)
+  const [isLoadingData, setIsLoadingData] = useState(false)
 
-  // Check if data exists on mount and load it
+  // DashboardDataProvider will load from Convex; keep local state until import completes
   useEffect(() => {
-    const loadExistingData = async () => {
-      try {
-        // Only check session storage for initial state detection
-        // DashboardDataProvider will handle full data loading
-        const hasData = await watchHistoryStorage.hasData()
-        
-        if (hasData) {
-          setAppState('populated')
-        }
-      } catch (error) {
-        console.error('Failed to check existing data:', error)
-      } finally {
-        setIsLoadingData(false)
-      }
+    if (isLoaded && isSignedIn) {
+      // Default to empty until user imports; once imported, we flip to populated
+      setIsLoadingData(false)
     }
-    
-    if (isLoaded) {
-      loadExistingData()
-    }
-  }, [isLoaded])
+  }, [isLoaded, isSignedIn])
 
   const handleUpload = () => {
     setAppState('import')
@@ -57,29 +39,7 @@ export default function Home() {
     setAppState('populated')
   }
 
-  const handleLoadDemo = async () => {
-    setIsLoadingDemo(true)
-    try {
-      const { records, summary } = generateDemoData()
-      const metadata = {
-        importedAt: new Date().toISOString(),
-        fileName: 'demo-data.json',
-        fileSize: JSON.stringify(records).length
-      }
-      
-      await watchHistoryStorage.saveRecords(records, metadata, summary)
-      setAppState('populated')
-    } catch (error) {
-      console.error('Failed to load demo data:', error)
-    } finally {
-      setIsLoadingDemo(false)
-    }
-  }
-
-  const resetState = async () => {
-    await watchHistoryStorage.clearAll()
-    setAppState('empty')
-  }
+  // Demo/local caching removed in Convex-only mode
 
   const handleNewImport = () => {
     setAppState('import')
@@ -99,7 +59,7 @@ export default function Home() {
   if (appState === 'empty') {
     return (
       <div className="min-h-screen bg-terminal-bg">
-        <EmptyState onUpload={handleUpload} onLoadDemo={handleLoadDemo} isLoadingDemo={isLoadingDemo} />
+        <EmptyState onUpload={handleUpload} />
       </div>
     )
   }
@@ -131,35 +91,19 @@ export default function Home() {
                 <Upload className="w-4 h-4 mr-2" />
                 IMPORT_NEW_DATA
               </Button>
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                className="text-signal-red-400 hover:text-signal-red-300 hover:bg-signal-red-500/10" 
-                onClick={resetState}
-              >
-                <FileText className="w-4 h-4 mr-2" />
-                CLEAR_ALL_DATA
-              </Button>
             </div>
           </div>
 
           {/* Main Dashboard with Data Provider */}
           <DashboardDataProvider />
+          <ConvexClerkHealthBanner />
         </div>
       </div>
     </div>
   )
 }
 
-function EmptyState({ 
-  onUpload, 
-  onLoadDemo, 
-  isLoadingDemo 
-}: { 
-  onUpload: () => void
-  onLoadDemo: () => void
-  isLoadingDemo: boolean
-}) {
+function EmptyState({ onUpload }: { onUpload: () => void }) {
   return (
     <div className="flex items-center justify-center min-h-[calc(100vh-4rem)] p-6">
       <div className="max-w-md w-full space-y-8 text-center">
@@ -180,44 +124,10 @@ function EmptyState({
             <Upload className="w-4 h-4 mr-2" />
 INITIALIZE_STREAM
           </Button>
-
-          <div className="relative">
-            <div className="absolute inset-0 flex items-center">
-              <span className="w-full border-t border-gray-600" />
-            </div>
-            <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-gray-900 px-2 text-gray-400">Or</span>
-            </div>
-          </div>
-
-          <Button 
-            onClick={onLoadDemo} 
-            size="lg" 
-            variant="outline" 
-            className="w-full"
-            disabled={isLoadingDemo}
-          >
-            {isLoadingDemo ? (
-              <>
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-signal-green-500 mr-2" />
-                GENERATING_DEMO_STREAM...
-              </>
-            ) : (
-              <>
-                <BarChart3 className="w-4 h-4 mr-2" />
-LOAD_DEMO_DATA
-              </>
-            )}
-          </Button>
-          
-          <div className="flex items-center gap-4 text-xs text-gray-500">
+          <div className="flex items-center gap-4 text-xs text-gray-500 justify-center">
             <div className="flex items-center gap-2">
               <FileText className="w-3 h-3" />
               <span>SUPPORTS_HTML_FORMAT</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="w-1 h-1 rounded-full bg-gray-600"></span>
-              <span>LOCAL_PROCESSING_ONLY</span>
             </div>
           </div>
         </div>

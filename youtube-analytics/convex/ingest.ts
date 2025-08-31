@@ -1,4 +1,4 @@
-import { mutation } from 'convex/server'
+import { mutation } from './_generated/server'
 import { v } from 'convex/values'
 
 export const ingestWatchRecords = mutation({
@@ -61,4 +61,3 @@ export const ingestWatchRecords = mutation({
     return { inserted, skipped }
   }
 })
-

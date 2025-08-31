@@ -1,4 +1,4 @@
-import { query } from 'convex/server'
+import { query } from './_generated/server'
 import { v } from 'convex/values'
 
 function isoDateOnly(date: Date) {
@@ -69,3 +69,36 @@ export const summary = query({
   }
 })
 
+// Return the user's raw records (as saved during ingest) for client aggregations
+export const records = query({
+  args: { limit: v.optional(v.number()), days: v.optional(v.number()) },
+  handler: async (ctx, { limit, days }) => {
+    const identity = await ctx.auth.getUserIdentity()
+    if (!identity?.subject) throw new Error('UNAUTHORIZED')
+    const userId = identity.subject
+
+    const since = days && days > 0 ? new Date(Date.now() - days * 24 * 60 * 60 * 1000) : null
+
+    let q = ctx.db
+      .query('watch_events')
+      .withIndex('by_user_time', q => q.eq('userId', userId))
+      .order('desc')
+
+    const events = await q.collect()
+    const filtered = since
+      ? events.filter(e => !e.startedAt || new Date(e.startedAt) >= since)
+      : events
+
+    const sliced = typeof limit === 'number' && limit > 0 ? filtered.slice(0, limit) : filtered
+
+    // We persisted the original parsed record in `raw`. Return it to the client.
+    // Ensure each record has a stable id; fall back to Convex _id if missing.
+    return sliced.map(e => {
+      const raw = (e as any).raw ?? {}
+      if (!raw.id) {
+        raw.id = `${e._id}`
+      }
+      return raw
+    })
+  }
+})

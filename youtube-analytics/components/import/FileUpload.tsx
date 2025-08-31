@@ -3,14 +3,14 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
 import { Upload, FileText, AlertCircle, CheckCircle, X, Cloud, Database } from 'lucide-react'
 import { useAuth } from '@clerk/nextjs'
-import { watchHistoryStorage } from '@/lib/storage'
-import { createHistoricalStorage, HistoricalUploadMetadata } from '@/lib/historical-storage'
-import { ImportSummary } from '@/types/records'
+import { ImportSummary, WatchRecord } from '@/types/records'
 import { Card } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
 import { ParseWorkerMessage } from '@/lib/parser.worker'
 import { createSafeWorker, detectWorkerSupport, SafeWorker } from '@/lib/worker-loader'
 import { YouTubeHistoryParser } from '@/lib/parser'
+import { useMutation } from 'convex/react'
+import { api } from '@/convex/_generated/api'
 
 interface FileUploadProps {
   onImportComplete: (summary: ImportSummary) => void
@@ -28,9 +28,10 @@ export function FileUpload({ onImportComplete, onImportStart, className }: FileU
   const fileInputRef = useRef<HTMLInputElement>(null)
   const workerRef = useRef<SafeWorker | null>(null)
 
-  // Determine storage strategy based on authentication
+  const ingestWatchRecords = useMutation(api.ingest.ingestWatchRecords)
+
+  // Determine strategy based on authentication
   const isAuthenticated = !!userId
-  const storageMode = isAuthenticated ? 'historical' : 'session'
 
   const processFile = useCallback(async (file: File) => {
     setIsProcessing(true)
@@ -89,25 +90,11 @@ export function FileUpload({ onImportComplete, onImportStart, className }: FileU
             throw new Error('NO_VALID_DATA_STREAMS: Ensure file is Google Takeout watch-history.html format')
           }
 
-          const metadata = {
-            uploadedAt: new Date().toISOString(),
-            fileName: file.name,
-            fileSize: file.size,
-            recordCount: records.length
-          } as HistoricalUploadMetadata
-
-          // Route to appropriate storage based on authentication
+          // Ingest into Convex when authenticated
           if (isAuthenticated && userId) {
-            const historicalStorage = createHistoricalStorage(userId)
-            await historicalStorage.saveUpload(records, metadata, summary)
+            await ingestInChunks(records)
           } else {
-            // Session storage metadata for compatibility
-            const sessionMetadata = {
-              importedAt: metadata.uploadedAt,
-              fileName: metadata.fileName,
-              fileSize: metadata.fileSize
-            }
-            await watchHistoryStorage.saveRecords(records, sessionMetadata, summary)
+            throw new Error('SIGN_IN_REQUIRED: Please sign in to upload your history')
           }
 
           onImportComplete(summary)
@@ -155,25 +142,10 @@ export function FileUpload({ onImportComplete, onImportStart, className }: FileU
         throw new Error('NO_VALID_DATA_STREAMS: Ensure file is Google Takeout watch-history.html format')
       }
 
-      const metadata = {
-        uploadedAt: new Date().toISOString(),
-        fileName: file.name,
-        fileSize: file.size,
-        recordCount: records.length
-      } as HistoricalUploadMetadata
-
-      // Route to appropriate storage based on authentication
       if (isAuthenticated && userId) {
-        const historicalStorage = createHistoricalStorage(userId)
-        await historicalStorage.saveUpload(records, metadata, summary)
+        await ingestInChunks(records)
       } else {
-        // Session storage metadata for compatibility
-        const sessionMetadata = {
-          importedAt: metadata.uploadedAt,
-          fileName: metadata.fileName,
-          fileSize: metadata.fileSize
-        }
-        await watchHistoryStorage.saveRecords(records, sessionMetadata, summary)
+        throw new Error('SIGN_IN_REQUIRED: Please sign in to upload your history')
       }
 
       onImportComplete(summary)
@@ -181,6 +153,15 @@ export function FileUpload({ onImportComplete, onImportStart, className }: FileU
       throw err
     }
   }, [onImportComplete, workerSupport, isAuthenticated, userId])
+
+  // Ingest helper: chunk to avoid large payloads
+  const ingestInChunks = useCallback(async (records: WatchRecord[]) => {
+    const CHUNK_SIZE = 1000
+    for (let i = 0; i < records.length; i += CHUNK_SIZE) {
+      const chunk = records.slice(i, i + CHUNK_SIZE)
+      await ingestWatchRecords({ records: chunk as any })
+    }
+  }, [ingestWatchRecords])
 
   const handleDrag = useCallback((e: React.DragEvent) => {
     e.preventDefault()
@@ -362,8 +343,8 @@ export function FileUpload({ onImportComplete, onImportStart, className }: FileU
         <div className="flex items-start space-x-2">
           <CheckCircle className="h-4 w-4 signal-green mt-0.5 flex-shrink-0" />
           <div>
-            <p className="font-medium">LOCAL_PROCESSING_ONLY</p>
-            <p className="text-terminal-muted">All processing happens locally. No data transmission to external servers.</p>
+            <p className="font-medium">SERVER_BACKED_STORAGE</p>
+            <p className="text-terminal-muted">When signed in, your processed history is securely stored in Convex.</p>
           </div>
         </div>
 

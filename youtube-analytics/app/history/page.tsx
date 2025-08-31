@@ -7,79 +7,33 @@ export const dynamic = 'force-dynamic'
 export const fetchCache = 'default-no-store'
 import { useAuth } from '@clerk/nextjs'
 import { WatchRecord } from '@/types/records'
-import { watchHistoryStorage } from '@/lib/storage'
-import { createHistoricalStorage } from '@/lib/historical-storage'
 import { Card } from '@/components/ui/card'
 import { Loader2, Calendar, Clock, Film, ChevronLeft, ChevronRight, ExternalLink, AlertCircle } from 'lucide-react'
 import { format, parseISO } from 'date-fns'
+import { useQuery } from 'convex/react'
+import { api } from '@/convex/_generated/api'
 
 const ITEMS_PER_PAGE = 100
 
 export default function HistoryPage() {
-  const { isLoaded, isSignedIn, userId } = useAuth()
+  const { isLoaded, isSignedIn } = useAuth()
   const [records, setRecords] = useState<WatchRecord[]>([])
   const [loading, setLoading] = useState(true)
   const [currentPage, setCurrentPage] = useState(1)
   const [totalRecords, setTotalRecords] = useState(0)
   
-  const isAuthenticated = !!userId
-
-  // Unified data loading with improved timestamp handling
-  const loadData = useCallback(async () => {
-    console.log('📋 History Page: Starting unified data load...')
-    setLoading(true)
-    
-    try {
-      let allRecords: WatchRecord[] = []
-      let dataSource: 'session' | 'historical' = 'session'
-      
-      // Use same logic as dashboard data provider
-      if (isAuthenticated && userId) {
-        console.log('📋 Checking historical storage for user:', userId)
-        const historicalStorage = createHistoricalStorage(userId)
-        
-        try {
-          const aggregations = await historicalStorage.getPrecomputedAggregations()
-          
-          if (aggregations && aggregations.totalRecords > 0) {
-            allRecords = await historicalStorage.queryTimeSlice({})
-            dataSource = 'historical'
-            console.log(`☁️ Historical storage: ${allRecords.length} records loaded`)
-          } else {
-            // Fallback to session storage
-            allRecords = await watchHistoryStorage.getRecords() || []
-            dataSource = 'session'
-            console.log(`📦 Session storage fallback: ${allRecords.length} records loaded`)
-          }
-        } catch (error) {
-          console.warn('❌ Historical storage failed, using session storage:', error)
-          allRecords = await watchHistoryStorage.getRecords() || []
-          dataSource = 'session'
-        }
-      } else {
-        console.log('📦 Loading from session storage (unauthenticated)')
-        allRecords = await watchHistoryStorage.getRecords() || []
-        dataSource = 'session'
-      }
-
-      console.log(`📋 Data source: ${dataSource}, Total records: ${allRecords.length}`)
-      
-      // Enhanced timestamp validation and sorting
-      const processedRecords = processRecordsForDisplay(allRecords)
-      
-      setRecords(processedRecords.validRecords)
-      setTotalRecords(processedRecords.validRecords.length)
-      
-      console.log(`✅ Processing complete: ${processedRecords.validRecords.length} records, ${processedRecords.timestampStats.withValidTimestamps} with valid timestamps`)
-      
-    } catch (error) {
-      console.error('❌ Failed to load history data:', error)
-      setRecords([])
-      setTotalRecords(0)
-    } finally {
-      setLoading(false)
+  const convexRecords = useQuery(api.dashboard.records, isSignedIn ? { days: 365 } : 'skip' as any)
+  
+  // Unified data loading with Convex records
+  useEffect(() => {
+    if (!isLoaded) return
+    setLoading(convexRecords === undefined)
+    if (Array.isArray(convexRecords)) {
+      const processed = processRecordsForDisplay(convexRecords as WatchRecord[])
+      setRecords(processed.validRecords)
+      setTotalRecords(processed.validRecords.length)
     }
-  }, [isAuthenticated, userId])
+  }, [isLoaded, convexRecords])
   
   // Enhanced record processing with better timestamp handling
   const processRecordsForDisplay = useCallback((allRecords: WatchRecord[]) => {
@@ -147,12 +101,7 @@ export default function HistoryPage() {
     return year >= 2005 && year <= (now.getFullYear() + 1) // YouTube was founded in 2005
   }, [])
 
-  // Load data on mount and when auth status changes
-  useEffect(() => {
-    if (isLoaded) {
-      loadData()
-    }
-  }, [isLoaded, loadData])
+  // Data loading handled by Convex query above
 
   // Calculate pagination
   const totalPages = Math.ceil(totalRecords / ITEMS_PER_PAGE)
