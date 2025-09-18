@@ -1,0 +1,10 @@
+node_modules/
+**/node_modules/**
+.next/
+**/.next/**
+youtube-analytics/playwright-report/
+youtube-analytics/test-results/
+.playwright-mcp/
+**/.playwright-mcp/**
+apps/
+apps/**

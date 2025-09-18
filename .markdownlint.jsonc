@@ -1,0 +1,28 @@
+{
+  // Base markdownlint configuration for this repo
+  // Keep rules on by default, selectively relax noisy ones
+  "default": true,
+
+  // MD013: Line length – disabled to avoid disruptive reflowing
+  // Many docs intentionally use long lines (links, tables, code)
+  "MD013": false,
+
+  // MD022/MD032: Blank lines around headings/lists – relaxed to match
+  // existing writing style without forcing large structural changes
+  "MD022": false,
+  "MD032": false,
+
+  // Additional relaxations to match existing docs and reports
+  // Many report-style docs use colons in headings, mixed OL prefixes,
+  // omit languages on snippets, and contain intentional spacing
+  "MD026": false,
+  "MD031": false,
+  "MD040": false,
+  "MD029": false,
+  "MD024": false,
+  "MD012": false,
+  "MD047": false,
+  "MD009": false
+  ,
+  "MD001": false
+}

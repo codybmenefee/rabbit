@@ -22,6 +22,28 @@ Track recent implementation changes to maintain context between sessions. This h
 
 ---
 
+## September 2025 Changes
+
+### 2025-09-18 - Repo Docs & Scripts Cleanup
+**Type**: Docs/Refactor
+**Files Modified**:
+- CLAUDE.md (updated debug tools + instructions)
+- youtube-analytics/scripts/CLAUDE.md
+- youtube-analytics/package.json (added validation/dev scripts)
+- youtube-analytics/docs/agents/final-validation-report.md (moved)
+- youtube-analytics/scripts/dev-tools/* (moved debug scripts)
+**Changes Made**:
+- Consolidated scattered debug scripts into `scripts/dev-tools/`
+- Moved stray `final-validation-report.md` to `docs/agents/`
+- Updated root docs to reference new script paths
+- Added npm scripts for validation and dev tooling
+- Removed empty `youtube-analytics/db/` directory
+**Impact**: Internal maintainability; aligns with AGENTS.md conventions
+**Testing**: Not Required (file moves and docs updates only)
+**Notes**: No functional code changes
+
+---
+
 ## December 2024 Changes
 
 ### 2024-12-20 - Agent Framework Overhaul
