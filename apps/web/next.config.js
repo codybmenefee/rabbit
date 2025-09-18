@@ -1,3 +1,5 @@
+const path = require('path')
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   eslint: {
@@ -6,6 +8,8 @@ const nextConfig = {
   typescript: {
     ignoreBuildErrors: true,
   },
+  // Silence workspace root inference warning in monorepo
+  outputFileTracingRoot: path.resolve(__dirname, '..', '..'),
   experimental: {
     webpackBuildWorker: true,
     // Configure client-side router cache behavior
