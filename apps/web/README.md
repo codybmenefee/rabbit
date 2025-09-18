@@ -54,6 +54,13 @@ Required variables (see `.env.example`):
 - `CLERK_JWT_ISSUER_DOMAIN` (e.g. https://<your-tenant>.clerk.accounts.dev)
 - `NEXT_PUBLIC_CONVEX_URL` (from Convex dev/prod)
 
+### Team workflow for env secrets
+
+- Store Clerk keys in a shared secrets manager (1Password/Bitwarden) and have teammates copy them into `.env.local`.
+- Ensure the Clerk dashboard has a JWT template named `convex` with the issuer shown above; share the Issuer URL (`https://helping-swan-53.clerk.accounts.dev` for the current project).
+- After updating `CLERK_JWT_ISSUER_DOMAIN`, restart `npx convex dev` (or redeploy Convex) so the new issuer is picked up.
+- Developers should also set `CONVEX_DEPLOYMENT` to the shared deployment ID (see `.env.example`) if they rely on the same hosted instance.
+
 3) Start Convex (database + functions) in a second terminal
 
 ```bash

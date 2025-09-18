@@ -42,6 +42,17 @@ Track recent implementation changes to maintain context between sessions. This h
 **Testing**: Not Required (file moves and docs updates only)
 **Notes**: No functional code changes
 
+### 2025-09-18 - Env Setup Guidance
+**Type**: Docs
+**Files Modified**:
+- apps/web/README.md
+**Changes Made**:
+- Added team workflow instructions for sharing Clerk/Convex environment variables
+- Documented need to restart Convex after updating `CLERK_JWT_ISSUER_DOMAIN`
+**Impact**: Internal onboarding clarity
+**Testing**: Not Required
+**Notes**: Supports consistent developer setup across team
+
 ---
 
 ## December 2024 Changes
