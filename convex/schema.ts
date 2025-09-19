@@ -88,5 +88,29 @@ export default defineSchema({
     contentText: v.optional(v.string()),
     contentJson: v.optional(v.any()),
   }).index('by_run', ['runId']),
+
+  precomputed_aggregations: defineTable({
+    userId: v.string(),
+    aggregationType: v.string(),
+    filterHash: v.string(),
+    data: v.any(),
+    computedAt: v.string(),
+    expiresAt: v.string(),
+    version: v.number(),
+    metadata: v.optional(v.any()),
+  })
+    .index('by_user_type', ['userId', 'aggregationType'])
+    .index('by_filter_hash', ['filterHash'])
+    .index('by_expires', ['expiresAt']),
+
+  data_change_log: defineTable({
+    userId: v.string(),
+    changeType: v.string(),
+    recordCount: v.number(),
+    changedAt: v.string(),
+    processed: v.boolean(),
+  })
+    .index('by_user_processed', ['userId', 'processed'])
+    .index('by_changed_at', ['changedAt']),
 })
 
