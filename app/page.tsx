@@ -8,7 +8,7 @@ export const fetchCache = 'default-no-store'
 import { useAuth } from '@clerk/nextjs'
 import { useQuery } from 'convex/react'
 import { api } from '@/convex/_generated/api'
-import { Upload, FileText } from 'lucide-react'
+import { Upload, FileText, Search } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { ImportPage } from '@/components/import/ImportPage'
 import { ImportErrorBoundary } from '@/components/import/ErrorBoundary'
@@ -73,10 +73,11 @@ export default function Home() {
 
   if (isLoadingData) {
     return (
-      <div className="min-h-screen bg-terminal-bg flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-signal-green-500 mx-auto mb-4"></div>
-          <p className="text-terminal-muted terminal-text">LOADING_DATA_STREAM...</p>
+      <div className="flex min-h-screen items-center justify-center bg-gradient-to-b from-slate-950 via-slate-950 to-slate-900">
+        <div className="text-center space-y-3">
+          <div className="mx-auto h-12 w-12 animate-spin rounded-full border-2 border-white/10 border-l-cyan-400 border-t-purple-400"></div>
+          <p className="text-sm uppercase tracking-[0.3em] text-slate-500">Loading dashboard</p>
+          <p className="text-sm text-slate-400">Preparing your personalized analytics...</p>
         </div>
       </div>
     )
@@ -84,7 +85,7 @@ export default function Home() {
 
   if (appState === 'empty') {
     return (
-      <div className="min-h-screen bg-terminal-bg">
+      <div className="min-h-screen bg-gradient-to-b from-slate-950 via-slate-950 to-slate-900">
         <EmptyState onUpload={handleUpload} />
       </div>
     )
@@ -92,7 +93,7 @@ export default function Home() {
 
   if (appState === 'import') {
     return (
-      <div className="min-h-screen bg-terminal-bg p-6">
+      <div className="min-h-screen bg-gradient-to-b from-slate-950 via-slate-950 to-slate-900 p-6 text-slate-100">
         <ImportErrorBoundary>
           <ImportPage onImportComplete={handleImportComplete} />
         </ImportErrorBoundary>
@@ -101,61 +102,67 @@ export default function Home() {
   }
 
   return (
-    <div className="min-h-screen bg-terminal-bg">
-      <div className="p-6">
-        <div className="max-w-7xl mx-auto">
-          {/* Header with actions */}
-          <div className="mb-6 flex justify-between items-center">
-            <div>
-              <h1 className="text-2xl font-bold text-terminal-text terminal-text">RABBIT.ANALYTICS</h1>
-              <p className="text-terminal-muted text-sm mt-1 terminal-text">
-                INTELLIGENT_YOUTUBE_ANALYTICS_PLATFORM
-              </p>
+    <div className="min-h-screen bg-gradient-to-b from-slate-950 via-slate-950 to-slate-900 text-slate-100">
+      <div className="mx-auto flex max-w-7xl flex-col gap-8 px-6 py-8">
+        <header className="flex flex-wrap items-center justify-between gap-4">
+          <div className="flex items-center gap-4">
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-purple-500 to-cyan-400 text-sm font-semibold uppercase">
+              rb
             </div>
-            <div className="flex gap-2">
-              <Button variant="outline" size="sm" onClick={handleNewImport}>
-                <Upload className="w-4 h-4 mr-2" />
-                IMPORT_NEW_DATA
-              </Button>
+            <div>
+              <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Overview</p>
+              <h1 className="text-2xl font-semibold text-white">Dashboard</h1>
             </div>
           </div>
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="relative">
+              <input
+                type="search"
+                placeholder="Find anything..."
+                className="h-10 w-72 rounded-full border border-white/10 bg-white/5 px-4 pr-10 text-sm text-white placeholder:text-slate-500 focus:border-purple-500/60 focus:outline-none focus:ring-2 focus:ring-purple-500/30"
+              />
+              <Search className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+            </div>
+            <Button
+              onClick={handleNewImport}
+              className="bg-gradient-to-r from-purple-500 to-cyan-500 text-white shadow-lg shadow-purple-500/20"
+            >
+              <Upload className="mr-2 h-4 w-4" />
+              New upload
+            </Button>
+          </div>
+        </header>
 
-          {/* Main Dashboard with Data Provider */}
-          <DashboardDataProvider />
-          <ConvexClerkHealthBanner />
-        </div>
+        <DashboardDataProvider className="space-y-8" onRequestImport={handleNewImport} />
       </div>
+      <ConvexClerkHealthBanner />
     </div>
   )
 }
 
 function EmptyState({ onUpload }: { onUpload: () => void }) {
   return (
-    <div className="flex items-center justify-center min-h-[calc(100vh-4rem)] p-6">
-      <div className="max-w-md w-full space-y-8 text-center">
-        <div className="space-y-4">
-          <div className="w-20 h-20 rounded-lg terminal-surface border-terminal-border flex items-center justify-center mx-auto">
-            <Upload className="w-8 h-8 signal-green" />
-          </div>
-          <div className="space-y-2">
-            <h2 className="text-2xl font-semibold text-terminal-text terminal-text">INITIALIZE_DATA_STREAM</h2>
-            <p className="text-gray-400 text-sm leading-relaxed">
-              Upload Google Takeout watch history to initialize comprehensive analytics pipeline. Analyze viewing patterns, creator networks, and content trends.
-            </p>
-          </div>
+    <div className="flex min-h-screen items-center justify-center px-6 py-16">
+      <div className="w-full max-w-md space-y-6 rounded-3xl border border-white/10 bg-white/5 p-8 text-center text-slate-100 shadow-2xl shadow-purple-500/10 backdrop-blur">
+        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-r from-purple-500 to-cyan-400/90 text-white">
+          <Upload className="h-7 w-7" />
         </div>
-
-        <div className="space-y-4">
-          <Button onClick={onUpload} size="lg" className="w-full">
-            <Upload className="w-4 h-4 mr-2" />
-INITIALIZE_STREAM
-          </Button>
-          <div className="flex items-center gap-4 text-xs text-gray-500 justify-center">
-            <div className="flex items-center gap-2">
-              <FileText className="w-3 h-3" />
-              <span>SUPPORTS_HTML_FORMAT</span>
-            </div>
-          </div>
+        <div className="space-y-2">
+          <h2 className="text-2xl font-semibold text-white">Start your report</h2>
+          <p className="text-sm text-slate-300">
+            Upload your Google Takeout watch history to unlock watchtime, topic, and productivity insights tailored to your habits.
+          </p>
+        </div>
+        <Button
+          onClick={onUpload}
+          size="lg"
+          className="w-full bg-gradient-to-r from-purple-500 to-cyan-500 text-white shadow-lg shadow-purple-500/20"
+        >
+          <Upload className="mr-2 h-4 w-4" /> Upload data
+        </Button>
+        <div className="flex items-center justify-center gap-2 text-xs text-slate-400">
+          <FileText className="h-3 w-3" />
+          <span>Supports Google Takeout HTML exports</span>
         </div>
       </div>
     </div>

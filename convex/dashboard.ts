@@ -33,9 +33,11 @@ export const summary = query({
     const lookback = days && days > 0 ? days : 30
     const since = new Date(Date.now() - lookback * 24 * 60 * 60 * 1000)
 
+    // Use pagination to avoid hitting the 8192 limit
     const events = await ctx.db.query('watch_events')
       .withIndex('by_user_time', q => q.eq('userId', userId))
-      .collect()
+      .order('desc')
+      .take(MAX_RECORDS)
 
     const recent = events.filter(e => !e.startedAt || new Date(e.startedAt) >= since)
 
@@ -82,30 +84,33 @@ export const records = query({
 
     const since = days && days > 0 ? new Date(Date.now() - days * 24 * 60 * 60 * 1000) : null
 
-    let q = ctx.db
-      .query('watch_events')
-      .withIndex('by_user_time', q => q.eq('userId', userId))
-      .order('desc')
-
-    const events = await q.collect()
-    const filtered = since
-      ? events.filter(e => !e.startedAt || new Date(e.startedAt) >= since)
-      : events
-
+    // Use pagination to avoid hitting the 8192 limit
     const requestedLimit = typeof limit === 'number' && Number.isFinite(limit) && limit > 0
       ? Math.floor(limit)
       : null
     const effectiveLimit = requestedLimit ? Math.min(requestedLimit, MAX_RECORDS) : MAX_RECORDS
-    const sliced = filtered.slice(0, effectiveLimit)
+
+    const events = await ctx.db
+      .query('watch_events')
+      .withIndex('by_user_time', q => q.eq('userId', userId))
+      .order('desc')
+      .take(effectiveLimit)
+
+    const filtered = since
+      ? events.filter(e => !e.startedAt || new Date(e.startedAt) >= since)
+      : events
 
     // We persisted the original parsed record in `raw`. Return it to the client.
     // Ensure each record has a stable id; fall back to Convex _id if missing.
-    return sliced.map(e => {
+    return filtered.map(e => {
       const raw = (e as any).raw ?? {}
       if (!raw.id) {
         raw.id = `${e._id}`
       }
-      return raw
+      return {
+        ...raw,
+        startedAt: e.startedAt
+      }
     })
   }
 })

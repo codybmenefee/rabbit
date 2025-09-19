@@ -5,21 +5,40 @@ import { useAuth } from '@clerk/nextjs'
 import { WatchRecord } from '@/types/records'
 import { MainDashboard } from './main-dashboard'
 import { Loader2, Cloud, RefreshCw, Shield } from 'lucide-react'
-import { Card } from '@/components/ui/card'
 import { useQuery } from 'convex/react'
 import { api } from '@/convex/_generated/api'
+import { normalizeWatchRecord } from '@/lib/aggregations'
 
-interface DashboardDataProviderProps { className?: string }
+interface DashboardDataProviderProps {
+  className?: string
+  onRequestImport?: () => void
+}
 type LoadingState = 'loading' | 'success' | 'error' | 'empty'
 
-export function DashboardDataProvider({ className }: DashboardDataProviderProps) {
+export function DashboardDataProvider({ className, onRequestImport }: DashboardDataProviderProps) {
   const { isLoaded, isSignedIn } = useAuth()
   const [loadingState, setLoadingState] = useState<LoadingState>('loading')
   const [lastRefreshed, setLastRefreshed] = useState<Date>(new Date())
   const [validationStatus, setValidationStatus] = useState<'unknown' | 'healthy' | 'warning' | 'error'>('unknown')
 
-  const convexRecords = useQuery(api.dashboard.records, isSignedIn ? { days: 365 } : 'skip' as any)
-  const data: WatchRecord[] = useMemo(() => Array.isArray(convexRecords) ? convexRecords as WatchRecord[] : [], [convexRecords])
+  const convexRecords = useQuery(api.dashboard.records, isSignedIn ? {} : 'skip' as any)
+  const data: WatchRecord[] = useMemo(() => {
+    if (!Array.isArray(convexRecords)) {
+      return []
+    }
+
+    return (convexRecords as any[]).map(raw => {
+      const normalized = normalizeWatchRecord({
+        ...raw,
+        startedAt: raw.startedAt
+      }, raw.id)
+      return {
+        ...normalized,
+        topics: Array.isArray(raw.topics) && raw.topics.length > 0 ? raw.topics : normalized.topics,
+        product: raw.product === 'YouTube Music' ? 'YouTube Music' : normalized.product
+      }
+    })
+  }, [convexRecords])
 
   useEffect(() => {
     if (!isLoaded) return
@@ -47,13 +66,10 @@ export function DashboardDataProvider({ className }: DashboardDataProviderProps)
     switch (loadingState) {
       case 'loading':
         return (
-          <div className="flex items-center justify-center min-h-[400px]">
-            <div className="text-center space-y-4">
-              <Loader2 className="h-8 w-8 animate-spin signal-green mx-auto" />
-              <div className="space-y-2">
-                <p className="text-lg font-medium terminal-text">LOADING_DATA_STREAM...</p>
-                <p className="text-terminal-muted text-sm terminal-text">Fetching your data from Convex...</p>
-              </div>
+          <div className="flex min-h-[400px] items-center justify-center">
+            <div className="space-y-2 text-center">
+              <Loader2 className="mx-auto h-8 w-8 animate-spin text-purple-400" />
+              <p className="text-sm text-slate-400">Fetching your data from Convex...</p>
             </div>
           </div>
         )
@@ -82,22 +98,28 @@ export function DashboardDataProvider({ className }: DashboardDataProviderProps)
   return (
     <div className={className}>
       {/* Enhanced data source indicator */}
-      <div className="mb-6 flex items-center justify-between">
-        <div className="flex items-center space-x-2 text-sm text-terminal-muted terminal-text">
-          <Cloud className="h-4 w-4 signal-blue" />
-          <span>Convex</span>
-          <span className="text-terminal-muted">• {data.length.toLocaleString()} total records</span>
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-4 text-sm">
+        <div className="flex flex-wrap items-center gap-2 text-slate-400">
+          <Cloud className="h-4 w-4 text-cyan-400" />
+          <span>Convex data</span>
+          <span className="text-slate-500">• {data.length.toLocaleString()} records</span>
           {validationStatus !== 'unknown' && (
             <>
-              <span className="text-gray-400">•</span>
-              <div className="flex items-center space-x-1">
+              <span className="text-slate-600">•</span>
+              <div className="flex items-center gap-1">
                 <Shield className={`h-3 w-3 ${
-                  validationStatus === 'healthy' ? 'text-green-500' : 
-                  validationStatus === 'warning' ? 'text-yellow-500' : 'text-red-500'
+                  validationStatus === 'healthy'
+                    ? 'text-emerald-400'
+                    : validationStatus === 'warning'
+                      ? 'text-amber-400'
+                      : 'text-rose-400'
                 }`} />
-                <span className={`text-xs ${
-                  validationStatus === 'healthy' ? 'text-green-500' : 
-                  validationStatus === 'warning' ? 'text-yellow-500' : 'text-red-500'
+                <span className={`text-xs font-medium ${
+                  validationStatus === 'healthy'
+                    ? 'text-emerald-300'
+                    : validationStatus === 'warning'
+                      ? 'text-amber-300'
+                      : 'text-rose-300'
                 }`}>
                   {validationStatus.toUpperCase()}
                 </span>
@@ -105,24 +127,19 @@ export function DashboardDataProvider({ className }: DashboardDataProviderProps)
             </>
           )}
         </div>
-        
-        <div className="flex items-center space-x-4">
-          <span className="text-xs text-gray-500">
-            Last updated: {lastRefreshed.toLocaleTimeString()}
-          </span>
+        <div className="flex items-center gap-3 text-xs text-slate-500">
+          <span>Last updated: {lastRefreshed.toLocaleTimeString()}</span>
           <button
             onClick={() => window.location.reload()}
-            className="text-xs text-terminal-muted hover:text-terminal-text terminal-text flex items-center space-x-1"
+            className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-slate-300 transition hover:bg-white/10 hover:text-white"
           >
             <RefreshCw className="h-3 w-3" />
-            <span>REFRESH</span>
+            Refresh
           </button>
-          
-          {/* Validation toggle removed in Convex-only mode */}
         </div>
       </div>
 
-      <MainDashboard data={data} />
+      <MainDashboard data={data} onRequestImport={onRequestImport} />
     </div>
   )
 }

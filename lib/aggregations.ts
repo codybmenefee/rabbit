@@ -88,9 +88,10 @@ function getWatchDate(record: WatchRecord): Date | null {
 
 function resolveTimestamp(
   watchedAt?: string | null,
-  rawTimestamp?: string | null
+  rawTimestamp?: string | null,
+  startedAt?: string | null
 ): { isoString: string | null; date: Date | null } {
-  const candidates: Array<string | null | undefined> = [watchedAt, rawTimestamp]
+  const candidates: Array<string | null | undefined> = [watchedAt, rawTimestamp, startedAt]
   for (const candidate of candidates) {
     const parsed = parseFlexibleTimestamp(candidate)
     if (parsed) {
@@ -427,12 +428,14 @@ export function normalizeWatchRecord(
     watchedAt?: string | null
     product?: string
     rawTimestamp?: string
+    startedAt?: string | null
   },
   id?: string
 ): WatchRecord {
   const { isoString: resolvedWatchedAt, date } = resolveTimestamp(
     rawData.watchedAt,
-    rawData.rawTimestamp ?? null
+    rawData.rawTimestamp ?? null,
+    rawData.startedAt ?? null
   )
 
   const topics = deriveTopics(

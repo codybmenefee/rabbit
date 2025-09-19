@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo } from 'react'
+import { useMemo, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import {
   Bar,
@@ -11,6 +11,7 @@ import {
   PieChart,
   ResponsiveContainer,
   Tooltip,
+  TooltipProps,
   XAxis
 } from 'recharts'
 import { Button } from '@/components/ui/button'
@@ -27,7 +28,9 @@ import {
   startOfWeek,
   subDays,
   subWeeks,
-  subYears
+  subYears,
+  parse,
+  isValid
 } from 'date-fns'
 import { ArrowDownRight, ArrowUpRight, Upload } from 'lucide-react'
 
@@ -48,6 +51,28 @@ const PRODUCTIVE_KEYWORDS = [
   'finance',
   'health'
 ]
+
+const TIMESTAMP_FORMATS = [
+  'MMM d, yyyy, h:mm:ss a xxx',
+  'MMM d, yyyy, h:mm:ss a xx',
+  'MMM d, yyyy, h:mm:ss a',
+  'MMM d, yyyy, h:mm a xxx',
+  'MMM d, yyyy, h:mm a',
+  'MMM d yyyy, h:mm:ss a xxx',
+  'MMM d yyyy, h:mm:ss a',
+  'MMM d yyyy h:mm a xxx',
+  'MMM d yyyy h:mm a',
+  'yyyy-MM-dd HH:mm:ss',
+  "yyyy-MM-dd'T'HH:mm:ss.SSSxxx",
+  "yyyy-MM-dd'T'HH:mm:ssxxx",
+  'yyyy/MM/dd HH:mm:ss',
+  'dd.MM.yyyy, HH:mm:ss',
+  'dd.MM.yyyy HH:mm:ss',
+  'MM/dd/yyyy, h:mm:ss a',
+  'MM/dd/yyyy h:mm:ss a',
+  'dd/MM/yyyy, HH:mm:ss',
+  'dd/MM/yyyy HH:mm:ss'
+] as const
 
 interface DashboardMetric {
   id: string
@@ -130,6 +155,18 @@ interface RecordWithDate {
 
 export function MainDashboard({ data, onRequestImport }: MainDashboardProps) {
   const analytics = useMemo(() => computeAnalytics(data), [data])
+  useEffect(() => {
+    if (process.env.NODE_ENV !== 'production' && data.length > 0) {
+      console.log('Dashboard sample record', data[0])
+    }
+  }, [data])
+  const handleUpload = () => {
+    if (onRequestImport) {
+      onRequestImport()
+    } else if (typeof window !== 'undefined') {
+      window.location.href = '/history'
+    }
+  }
 
   if (!analytics) {
     return (
@@ -139,7 +176,7 @@ export function MainDashboard({ data, onRequestImport }: MainDashboardProps) {
           <p className="text-sm text-slate-400">
             Upload your Google Takeout history to unlock personalized insights.
           </p>
-          <Button onClick={onRequestImport} className="mt-4" size="sm">
+          <Button onClick={handleUpload} className="mt-4" size="sm">
             <Upload className="mr-2 h-4 w-4" /> Upload data
           </Button>
         </div>
@@ -154,7 +191,7 @@ export function MainDashboard({ data, onRequestImport }: MainDashboardProps) {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4 }}
       >
-        <CalloutCard onRequestImport={onRequestImport} totals={analytics.totals} />
+        <CalloutCard onUpload={handleUpload} totals={analytics.totals} />
       </motion.div>
 
       <motion.div
@@ -206,10 +243,10 @@ export function MainDashboard({ data, onRequestImport }: MainDashboardProps) {
 }
 
 function CalloutCard({
-  onRequestImport,
+  onUpload,
   totals
 }: {
-  onRequestImport?: () => void
+  onUpload: () => void
   totals: DashboardAnalytics['totals']
 }) {
   return (
@@ -240,7 +277,7 @@ function CalloutCard({
         <div className="flex items-end justify-end">
           <Button
             size="lg"
-            onClick={onRequestImport}
+            onClick={onUpload}
             className="bg-white/15 text-white hover:bg-white/25"
           >
             <Upload className="mr-2 h-4 w-4" /> Upload your data
@@ -304,18 +341,7 @@ function PerformanceCard({
               />
               <Tooltip
                 cursor={{ fill: 'rgba(148, 163, 184, 0.08)' }}
-                contentStyle={{
-                  backgroundColor: 'rgba(15, 23, 42, 0.95)',
-                  border: '1px solid rgba(148, 163, 184, 0.2)',
-                  borderRadius: 12,
-                  color: '#e2e8f0'
-                }}
-                formatter={(value: unknown, _name, payload) => {
-                  const data = payload && typeof payload[0] === 'object' ? payload[0].payload : null
-                  if (!data) return value
-                  const asNumber = typeof value === 'number' ? value : Number(value)
-                  return [`${asNumber.toFixed(1)} hrs`, `${data.videos} videos`]
-                }}
+                content={(props) => <TrendTooltip {...props} />}
               />
               <Bar dataKey="watchTimeHours" radius={[8, 8, 0, 0]} fill="url(#trendGradient)" />
             </BarChart>
@@ -323,6 +349,24 @@ function PerformanceCard({
         </div>
       </CardContent>
     </Card>
+  )
+}
+
+function TrendTooltip({ active, payload, label }: TooltipProps<number, string>) {
+  if (!active || !payload || payload.length === 0) {
+    return null
+  }
+
+  const entry = payload[0]
+  const hours = typeof entry.value === 'number' ? entry.value : Number(entry.value)
+  const videos = entry.payload?.videos ?? 0
+
+  return (
+    <div className="rounded-lg border border-white/10 bg-slate-900/95 px-3 py-2 text-slate-100 shadow-lg">
+      <p className="text-xs uppercase tracking-[0.3em] text-slate-400">{label}</p>
+      <p className="text-sm font-semibold text-white">{hours.toFixed(1)} hrs</p>
+      <p className="text-xs text-slate-400">{videos} videos</p>
+    </div>
   )
 }
 
@@ -683,8 +727,7 @@ function buildTopicMetrics(
       hours: hoursFromCount(count),
       hoursLabel: formatHours(hoursFromCount(count)),
       momDelta: percentageChange(count, prev),
-      yoyDelta: percentageChange(count, yoyValue),
-      barPercentage: 0
+      yoyDelta: percentageChange(count, yoyValue)
     }
   })
 
@@ -755,7 +798,15 @@ function buildTopicTimeline(
     }))
   }))
 
-  const labels = buckets.map(bucket => format(bucket.start, 'MMM'))
+  let lastMonth = ''
+  const labels = buckets.map(bucket => {
+    const month = format(bucket.start, 'MMM')
+    if (month === lastMonth) {
+      return ''
+    }
+    lastMonth = month
+    return month
+  })
 
   return { rows, labels }
 }
@@ -784,13 +835,36 @@ function filterByRange(records: RecordWithDate[], start: Date, end: Date): Recor
 }
 
 function resolveRecordDate(record: WatchRecord): Date | null {
-  const candidates = [record.watchedAt, (record as any).rawTimestamp as string | undefined]
+  const candidates = [record.watchedAt, record.rawTimestamp, (record as any).timestamp]
 
   for (const candidate of candidates) {
-    if (!candidate) continue
-    const parsed = new Date(candidate)
-    if (!Number.isNaN(parsed.getTime())) {
+    const parsed = parseWatchTimestamp(candidate)
+    if (parsed) {
       return parsed
+    }
+  }
+
+  return null
+}
+
+function parseWatchTimestamp(value?: string | null): Date | null {
+  if (!value) return null
+  const trimmed = value.trim().replace(/\u00a0/g, ' ')
+  if (!trimmed) return null
+
+  const direct = new Date(trimmed)
+  if (!Number.isNaN(direct.getTime())) {
+    return direct
+  }
+
+  for (const formatString of TIMESTAMP_FORMATS) {
+    try {
+      const parsed = parse(trimmed, formatString, new Date())
+      if (isValid(parsed)) {
+        return parsed
+      }
+    } catch (error) {
+      // ignore individual parse failures
     }
   }
 
