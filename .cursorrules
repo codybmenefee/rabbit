@@ -1,0 +1,22 @@
+# Cursor Rules for Rabbit
+
+This project uses hierarchical documentation:
+- Root `CLAUDE.md` for project architecture and patterns
+- `AGENTS.md` for global agent rules and coordination
+- Folder `CLAUDE.md` files for specific guidance
+
+## Quick Reference
+
+- **Components**: Use TypeScript interfaces, follow glassmorphism design
+- **Business Logic**: Write pure functions in `lib/`, use strong typing
+- **Testing**: Co-locate tests, aim for >80% coverage
+- **Documentation**: Update relevant `CLAUDE.md` files when patterns change
+
+## Key Patterns
+
+- Data flows from props → aggregation functions → visualization
+- Use Recharts for charts, Tailwind for styling
+- Keep components under 500 lines, split by responsibility
+- Maintain separation between parsing, storage, and presentation layers
+
+See the main documentation files for detailed context and guidelines.

@@ -1,190 +1,149 @@
-# 🐰 Rabbit - Data Analytics Platform
+# Rabbit - YouTube Analytics Intelligence Platform
 
-A comprehensive data analytics platform for media consumption insights across multiple platforms. Rabbit helps users understand their media consumption patterns through beautiful visualizations and intelligent insights.
-
-## 🎯 Vision
-
-Rabbit transforms raw media consumption data into actionable insights, starting with YouTube and expanding to podcasts, music, audiobooks, and other platforms. Our goal is to help users understand their digital consumption habits and make more intentional choices about their media consumption.
-
-## 🏗️ Architecture
-
-Rabbit is built as a monorepo with a platform-agnostic core and platform-specific implementations:
-
-```
-rabbit/
-├── apps/web/                    # Next.js web application
-├── packages/core/               # Platform-agnostic core logic
-│   ├── types/                   # Shared type definitions
-│   ├── parsers/                 # Data parsing engines
-│   ├── analytics/               # Analytics engines
-│   └── storage/                 # Data storage abstractions
-├── platforms/                   # Platform-specific implementations
-│   ├── youtube/                 # YouTube platform
-│   ├── spotify/                 # Future: Spotify platform
-│   └── podcast/                 # Future: Podcast platform
-├── packages/ui/                 # Shared UI components
-└── tools/                       # Development tools
-```
+A Next.js-based analytics dashboard for visualizing YouTube viewing history data from Google Takeout exports. Built with TypeScript, Tailwind CSS, and Recharts for data visualization.
 
 ## 🚀 Quick Start
 
-### Prerequisites
-
-- Node.js 18+ 
-- npm 8+
-
-### Installation
-
 ```bash
-# Clone the repository
-git clone https://github.com/your-org/rabbit.git
+# Clone and setup
+git clone <repository-url>
 cd rabbit
-
-# Install dependencies
 npm install
 
-# Configure environment for the web app
-cp apps/web/.env.example apps/web/.env.local
-# Fill in Clerk + Convex keys in apps/web/.env.local
+# Configure environment
+cp .env.example .env.local
+# Edit .env.local with your Clerk and Convex credentials
 
-# Start Convex (in another terminal)
-cd apps/web && npx convex dev
-
-# Start the Next.js development server (from repo root)
-cd -
-npm run dev
-```
-
-### Development
-
-```bash
 # Start development server
 npm run dev
-
-# Build for production
-npm run build
-
-# Run tests
-npm run test
-
-# Run linting
-npm run lint
-
-# Type checking
-npm run type-check
 ```
 
-## 📊 Supported Platforms
+Open [http://localhost:3000](http://localhost:3000) to view the application.
 
-### ✅ YouTube (Current)
-- Google Takeout HTML parsing
-- Watch history analysis
-- Channel and topic insights
-- Viewing pattern analysis
-- Year-over-year comparisons
+## 🏗️ Architecture
 
-### 🔄 Coming Soon
-- **Spotify**: Music listening history and insights
-- **Podcasts**: Podcast consumption patterns
-- **Audiobooks**: Reading/listening habits
-- **More platforms**: As data sources become available
+- **Frontend**: Next.js 15 with App Router
+- **Language**: TypeScript with strict mode
+- **Styling**: Tailwind CSS with glassmorphism design
+- **Charts**: Recharts for data visualizations
+- **Auth**: Clerk for authentication
+- **Backend**: Convex for data storage and queries
+- **Deployment**: Vercel
 
-## 🧩 Core Features
+## 📁 Project Structure
 
-### Data Processing
-- **Multi-format parsing**: HTML, JSON, CSV support
-- **Data validation**: Comprehensive error checking and data integrity
-- **Deduplication**: Smart duplicate detection and removal
-- **Normalization**: Consistent data structure across platforms
-
-### Analytics Engine
-- **KPI calculations**: Total consumption, unique creators, topics
-- **Trend analysis**: Time-based patterns and growth metrics
-- **Comparative analytics**: Year-over-year, quarter-over-quarter
-- **Insight generation**: AI-powered consumption insights
-
-### Visualization
-- **Interactive dashboards**: Beautiful, responsive charts
-- **Real-time filtering**: Dynamic data exploration
-- **Export capabilities**: PDF reports, CSV exports
-- **Mobile responsive**: Works on all devices
+```
+rabbit/
+├── app/                    # Next.js App Router pages
+├── components/             # UI components organized by feature
+├── lib/                    # Core business logic and utilities
+├── convex/                 # Backend functions and schema
+├── tests/                  # All tests (unit, integration, e2e)
+├── scripts/                # Development and validation scripts
+└── docs/                   # Comprehensive documentation
+```
 
 ## 🛠️ Development
 
-### Adding a New Platform
+### Prerequisites
+- Node.js 18+ 
+- npm 8+
+- Clerk account for authentication
+- Convex account for backend
 
-1. **Create platform directory**:
-   ```bash
-   mkdir platforms/new-platform
-   ```
+### Available Scripts
 
-2. **Implement platform types**:
-   ```typescript
-   // platforms/new-platform/types/index.ts
-   export interface NewPlatformRecord extends BaseMediaRecord {
-     platform: 'NewPlatform'
-     // platform-specific fields
-   }
-   ```
+```bash
+# Development
+npm run dev          # Start development server
+npm run build        # Build for production
+npm run start        # Start production server
 
-3. **Create parser**:
-   ```typescript
-   // platforms/new-platform/parsers/new-platform-parser.ts
-   export class NewPlatformParser implements BaseParser<NewPlatformRecord> {
-     // implement parser interface
-   }
-   ```
+# Code Quality
+npm run lint         # Run ESLint
+npm run type-check   # Run TypeScript checks
+npm run format       # Format code with Prettier
 
-4. **Add analytics**:
-   ```typescript
-   // platforms/new-platform/analytics/new-platform-analytics.ts
-   export class NewPlatformAnalytics extends BaseAggregations {
-     // implement platform-specific analytics
-   }
-   ```
+# Testing
+npm run test         # Run all tests
+npm run test:unit    # Run unit tests
+npm run test:e2e     # Run E2E tests
 
-### Code Organization
-
-- **Core packages**: Platform-agnostic logic that works across all platforms
-- **Platform packages**: Platform-specific implementations
-- **UI packages**: Shared components and design system
-- **Apps**: Application-specific code (web, mobile, etc.)
-
-## 📚 Documentation
-
-- [Architecture Guide](docs/architecture/)
-- [Platform Development](docs/platforms/)
-- [API Reference](docs/api/)
-- [Contributing Guide](docs/development/)
-
-## 🚢 Deployment
-
-- Web app (Vercel): see `apps/web/DEPLOYMENT.md`
-
-## 🤝 Contributing
-
-We welcome contributions! Please see our [Contributing Guide](docs/development/CONTRIBUTING.md) for details.
+# Validation
+npm run validate:all # Run all validation scripts
+npm run validate:analytics  # Validate analytics functions
+npm run validate:parsers    # Validate data parsers
+```
 
 ### Development Workflow
 
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Add tests
-5. Submit a pull request
+1. **Create Feature Branch**
+   ```bash
+   git checkout -b feature/your-feature-name
+   ```
+
+2. **Make Changes**
+   - Follow the established patterns in each folder
+   - Update relevant `CLAUDE.md` files if patterns change
+   - Add tests for new functionality
+
+3. **Validate Changes**
+   ```bash
+   npm run lint
+   npm run test
+   npm run validate:all
+   ```
+
+4. **Submit Pull Request**
+   - Ensure all checks pass
+   - Include clear description of changes
+   - Reference any related issues
+
+## 📚 Documentation
+
+- [Contributing Guidelines](./CONTRIBUTING.md) - How to contribute to the project
+- [Architecture Overview](./docs/architecture/) - Technical architecture details
+- [Development Setup](./docs/development/setup.md) - Detailed setup instructions
+- [API Documentation](./docs/api/) - Backend API reference
+
+## 🧪 Testing
+
+The project uses multiple testing strategies:
+
+- **Unit Tests**: Test individual functions and components
+- **Integration Tests**: Test component interactions
+- **E2E Tests**: Test complete user workflows with Playwright
+- **Validation Scripts**: Test data integrity and analytics accuracy
+
+## 🚀 Deployment
+
+The application is deployed on Vercel with automatic deployments from the main branch.
+
+### Environment Variables
+
+Required environment variables (see `.env.example`):
+
+```bash
+NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=your_clerk_key
+CLERK_SECRET_KEY=your_clerk_secret
+NEXT_PUBLIC_CONVEX_URL=your_convex_url
+CONVEX_DEPLOY_KEY=your_convex_deploy_key
+```
+
+## 🤝 Contributing
+
+We welcome contributions! Please see [CONTRIBUTING.md](./CONTRIBUTING.md) for detailed guidelines.
 
 ## 📄 License
 
-MIT License - see [LICENSE](LICENSE) for details.
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-## 🙏 Acknowledgments
+## 🆘 Support
 
-- Built with [Next.js](https://nextjs.org/)
-- Powered by [TypeScript](https://www.typescriptlang.org/)
-- Styled with [Tailwind CSS](https://tailwindcss.com/)
-- Charts by [Recharts](https://recharts.org/)
-- Icons by [Lucide](https://lucide.dev/)
+- Check the [documentation](./docs/) for detailed guides
+- Open an issue for bugs or feature requests
+- Join our discussions for questions and ideas
 
 ---
 
-**Rabbit** - Making sense of your digital consumption 🐰
+Built with ❤️ by the Rabbit team

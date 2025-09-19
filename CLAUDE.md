@@ -1,17 +1,14 @@
-# CLAUDE.md
+# Rabbit Project Context
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides high-level project architecture and patterns for AI agents working in this repository.
 
 ## Project Overview
 
-YouTube Analytics Intelligence Platform - A Next.js-based analytics dashboard for visualizing YouTube viewing history data from Google Takeout exports. Built with TypeScript, Tailwind CSS, and Recharts for data visualization.
+Rabbit is a YouTube Analytics Intelligence Platform - a Next.js-based analytics dashboard for visualizing YouTube viewing history data from Google Takeout exports. Built with TypeScript, Tailwind CSS, and Recharts for data visualization.
 
 ## Core Development Commands
 
 ```bash
-# Navigate to project
-cd youtube-analytics
-
 # Install dependencies
 npm install
 
@@ -27,15 +24,11 @@ npm start
 # Run linting
 npm run lint
 
-# Run Playwright tests
-npx playwright test
-
-# Run specific test file
-npx playwright test tests/simple-upload.spec.ts
+# Run all tests
+npm run test
 
 # Run validation scripts
-npx tsx scripts/validate-analytics.ts
-npx tsx scripts/validate-statistical-functions.ts
+npm run validate:all
 ```
 
 ## Architecture Overview

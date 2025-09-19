@@ -1,27 +1,56 @@
 {
   "name": "rabbit",
   "version": "1.0.0",
-  "description": "A data analytics platform for media consumption insights across multiple platforms",
+  "description": "YouTube Analytics Intelligence Platform - A Next.js-based analytics dashboard for visualizing YouTube viewing history data from Google Takeout exports",
   "private": true,
-  "workspaces": [
-    "apps/*",
-    "packages/*",
-    "platforms/*"
-  ],
   "scripts": {
-    "dev": "npm run dev --workspace=apps/web",
-    "build": "npm run build --workspace=apps/web",
-    "start": "npm run start --workspace=apps/web",
-    "lint": "npm run lint --workspace=apps/web",
-    "test": "npm run test --workspace=apps/web",
-    "type-check": "npm run type-check --workspace=apps/web",
-    "clean": "rm -rf node_modules apps/*/node_modules packages/*/node_modules platforms/*/node_modules",
-    "install:all": "npm install && npm run install:all --workspace=apps/web",
-    "validate:all": "npm run validate:all --workspace=apps/web"
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "type-check": "tsc --noEmit",
+    "format": "prettier --write .",
+    "test": "playwright test",
+    "test:unit": "jest",
+    "test:e2e": "playwright test",
+    "validate:analytics": "npx tsx scripts/validate-analytics.ts",
+    "validate:timestamps": "npx tsx scripts/validate-timestamp-extraction.ts",
+    "validate:stats": "npx tsx scripts/validate-statistical-functions.ts",
+    "validate:all": "npx tsx scripts/validation/run-validation.ts",
+    "dev:perf:worker": "node scripts/test-worker-performance.js",
+    "dev:parse": "node scripts/dev-tools/test-parsing.js",
+    "quality": "npm run lint && npm run type-check && npm run test"
+  },
+  "dependencies": {
+    "@clerk/nextjs": "^6.31.6",
+    "@radix-ui/react-dialog": "^1.1.15",
+    "@radix-ui/react-slot": "^1.2.3",
+    "@tailwindcss/typography": "^0.5.16",
+    "@types/node": "^24.2.1",
+    "@types/react": "^19.1.9",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "date-fns": "^4.1.0",
+    "framer-motion": "^12.23.12",
+    "convex": "^1.16.2",
+    "lucide-react": "^0.539.0",
+    "next": "^15.4.6",
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1",
+    "recharts": "^3.1.2",
+    "tailwind-merge": "^3.3.1",
+    "typescript": "^5.9.2",
+    "zod": "^3.23.8"
   },
   "devDependencies": {
-    "@types/node": "^24.2.1",
-    "typescript": "^5.9.2"
+    "@playwright/test": "^1.54.2",
+    "autoprefixer": "^10.4.16",
+    "eslint": "^9.33.0",
+    "eslint-config-next": "^15.4.6",
+    "jsdom": "^26.1.0",
+    "postcss": "^8.4.31",
+    "prettier": "^3.0.0",
+    "tailwindcss": "^3.4.0"
   },
   "engines": {
     "node": ">=18.0.0",
@@ -33,12 +62,12 @@
   },
   "keywords": [
     "analytics",
-    "data",
-    "media",
     "youtube",
-    "insights",
-    "consumption",
-    "platform"
+    "data-visualization",
+    "nextjs",
+    "typescript",
+    "tailwind",
+    "recharts"
   ],
   "author": "Rabbit Team",
   "license": "MIT"
