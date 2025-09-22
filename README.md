@@ -6,7 +6,7 @@ A Next.js-based analytics dashboard for visualizing YouTube viewing history data
 
 ```bash
 # Clone and setup
-git clone <repository-url>
+git clone [https://github.com/codybmenefee/rabbit]
 cd rabbit
 npm install
 
