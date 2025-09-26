@@ -114,3 +114,21 @@ export const records = query({
     })
   }
 })
+
+export const getRecentWatchEvents = query({
+  args: {
+    since: v.string(),
+  },
+  handler: async (ctx, { since }) => {
+    const identity = await ctx.auth.getUserIdentity()
+    if (!identity?.subject) throw new Error('UNAUTHORIZED')
+    const userId = identity.subject
+
+    return ctx.db
+      .query('watch_events')
+      .withIndex('by_user_time', (q) => 
+        q.eq('userId', userId).gte('startedAt', since)
+      )
+      .collect()
+  },
+})

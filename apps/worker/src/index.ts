@@ -36,6 +36,8 @@ const handlers: Record<string, JobHandler> = {
   'video.fetch_metadata': handleFetchMetadata,
   'video.ensure_transcript': handleEnsureTranscript,
   'video.generate_summary': handleGenerateSummary,
+  'file.process_html': handleProcessHtmlFile,
+  'data.enrich_new_records': handleEnrichNewRecords,
 }
 
 async function leaseJob(): Promise<JobLease | null> {
@@ -243,6 +245,148 @@ async function handleGenerateSummary(job: JobLease) {
   await completeJob(job._id, { status: 'ok', provider: 'openai' })
 }
 
+async function handleProcessHtmlFile(job: JobLease) {
+  const fileId = job.fileId
+  if (!fileId) {
+    await failJob(job._id, 'MISSING_FILE_ID', { allowRetry: false })
+    return
+  }
+
+  if (!job.userId) {
+    await failJob(job._id, 'MISSING_USER_ID', { allowRetry: false })
+    return
+  }
+
+  const payload = job.payload as any
+  if (!payload?.storageRef) {
+    await failJob(job._id, 'MISSING_STORAGE_REF', { allowRetry: false })
+    return
+  }
+
+  try {
+    // Download file from storage
+    const fileContent = await downloadFromStorage(payload.storageRef)
+    if (!fileContent) {
+      await failJob(job._id, 'FILE_DOWNLOAD_FAILED', { allowRetry: true })
+      return
+    }
+
+    // Parse HTML content
+    const { YouTubeHistoryParser } = await import('../../lib/parser')
+    const parser = new YouTubeHistoryParser()
+    const records = await parser.parseHTML(fileContent)
+
+    if (records.length === 0) {
+      await client.mutation('fileProcessor:completeFileProcessing', {
+        fileId,
+        recordCount: 0,
+        errorMessage: 'No valid video records found in HTML file',
+      })
+      await completeJob(job._id, { status: 'completed', recordCount: 0 })
+      return
+    }
+
+    // Ingest records in chunks
+    const CHUNK_SIZE = 100
+    let totalInserted = 0
+
+    for (let i = 0; i < records.length; i += CHUNK_SIZE) {
+      const chunk = records.slice(i, i + CHUNK_SIZE)
+      const result = await client.mutation('ingest:ingestWatchRecords', {
+        records: chunk,
+      })
+      totalInserted += result.inserted
+    }
+
+    // Mark file processing as complete
+    await client.mutation('fileProcessor:completeFileProcessing', {
+      fileId,
+      recordCount: totalInserted,
+    })
+
+    await completeJob(job._id, { 
+      status: 'completed', 
+      recordCount: totalInserted,
+      fileName: payload.fileName 
+    })
+
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown processing error'
+    
+    await client.mutation('fileProcessor:completeFileProcessing', {
+      fileId,
+      recordCount: 0,
+      errorMessage,
+    })
+
+    await failJob(job._id, `PROCESSING_ERROR: ${errorMessage}`, { allowRetry: false })
+  }
+}
+
+async function handleEnrichNewRecords(job: JobLease) {
+  const fileId = job.fileId
+  if (!fileId) {
+    await failJob(job._id, 'MISSING_FILE_ID', { allowRetry: false })
+    return
+  }
+
+  if (!job.userId) {
+    await failJob(job._id, 'MISSING_USER_ID', { allowRetry: false })
+    return
+  }
+
+  try {
+    // Get recent watch events for this user (from the last hour)
+    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString()
+    const recentEvents = await client.query('dashboard:getRecentWatchEvents', {
+      since: oneHourAgo,
+    })
+
+    if (!recentEvents || recentEvents.length === 0) {
+      await completeJob(job._id, { status: 'skipped', reason: 'no_recent_events' })
+      return
+    }
+
+    // Enqueue metadata and transcript jobs for new videos
+    let enrichmentJobs = 0
+    for (const event of recentEvents) {
+      if (!event.videoId) continue
+
+      // Enqueue metadata fetch
+      await client.mutation('jobs:enqueue', {
+        type: 'video.fetch_metadata',
+        userId: job.userId,
+        videoId: event.videoId,
+        priority: 50,
+        payload: { reason: 'file_processing_enrichment' },
+        dedupeKey: `video.fetch_metadata:${event.videoId}`,
+      })
+
+      // Enqueue transcript processing
+      await client.mutation('jobs:enqueue', {
+        type: 'video.ensure_transcript',
+        userId: job.userId,
+        videoId: event.videoId,
+        priority: 100,
+        payload: { reason: 'file_processing_enrichment' },
+        dedupeKey: `video.ensure_transcript:${event.videoId}`,
+      })
+
+      enrichmentJobs += 2
+    }
+
+    await completeJob(job._id, { 
+      status: 'completed', 
+      enrichmentJobs,
+      videosProcessed: recentEvents.length 
+    })
+
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown enrichment error'
+    await failJob(job._id, `ENRICHMENT_ERROR: ${errorMessage}`, { allowRetry: true })
+  }
+}
+
 function buildSummaryPrompt(transcript: any): string {
   const body = transcript?.metadata?.text ?? transcript?.content ?? ''
   return [
@@ -291,6 +435,25 @@ async function loop() {
       console.error('Worker loop error', error)
       await delay(LOOP_INTERVAL_MS)
     }
+  }
+}
+
+async function downloadFromStorage(storageRef: string): Promise<string | null> {
+  try {
+    // Download from Vercel Blob using the pathname
+    const blobUrl = `https://blob.vercel-storage.com${storageRef}`
+    
+    const response = await fetch(blobUrl)
+    if (!response.ok) {
+      throw new Error(`Failed to download file: ${response.status} ${response.statusText}`)
+    }
+    
+    const content = await response.text()
+    return content
+    
+  } catch (error) {
+    console.error('Failed to download file from Vercel Blob:', error)
+    return null
   }
 }
 

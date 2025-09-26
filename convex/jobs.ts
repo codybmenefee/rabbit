@@ -1,5 +1,6 @@
-import { mutation, query, type MutationCtx } from './_generated/server'
+import { mutation, query, type MutationCtx, internalMutation } from './_generated/server'
 import { v } from 'convex/values'
+import { internal } from './_generated/api'
 
 const DEFAULT_PRIORITY = 100
 const DEFAULT_LEASE_MS = 5 * 60 * 1000
@@ -11,6 +12,7 @@ export interface EnqueueJobInput {
   type: string
   userId?: string
   videoId?: string
+  fileId?: string
   priority?: number
   payload?: Record<string, unknown>
   dedupeKey?: string
@@ -33,6 +35,7 @@ export interface JobRecord {
   priority: number
   userId?: string
   videoId?: string
+  fileId?: string
   payload?: Record<string, unknown>
   attempts: number
   maxAttempts?: number
@@ -51,6 +54,7 @@ export async function enqueueJobInternal(
     type,
     userId,
     videoId,
+    fileId,
     priority,
     payload,
     dedupeKey,
@@ -76,6 +80,7 @@ export async function enqueueJobInternal(
     priority: priority ?? DEFAULT_PRIORITY,
     userId,
     videoId,
+    fileId,
     payload,
     attempts: 0,
     maxAttempts: maxAttempts ?? 5,
@@ -96,6 +101,7 @@ export const enqueue = mutation({
     type: v.string(),
     userId: v.optional(v.string()),
     videoId: v.optional(v.string()),
+    fileId: v.optional(v.string()),
     priority: v.optional(v.number()),
     payload: v.optional(v.any()),
     dedupeKey: v.optional(v.string()),
@@ -169,6 +175,7 @@ export const leaseNext = mutation({
       type: job.type,
       userId: job.userId,
       videoId: job.videoId,
+      fileId: job.fileId,
       payload: job.payload,
       attempts: job.attempts + 1,
       maxAttempts: job.maxAttempts,
@@ -292,7 +299,7 @@ export const release = mutation({
   },
 })
 
-export const releaseExpiredLeases = mutation({
+export const releaseExpiredLeases = internalMutation({
   args: {
     limit: v.optional(v.number()),
   },
@@ -344,5 +351,56 @@ export const stats = query({
       pending: pending.filter(filterByType).length,
       inProgress: inProgress.filter(filterByType).length,
     }
+  },
+})
+
+// Internal functions for cron jobs
+
+export const processJobQueue = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    // This function will be called by the cron job
+    // It should process pending jobs by calling external worker APIs
+    // For now, we'll just log that it was called
+    
+    const pendingJobs = await ctx.db
+      .query('jobs')
+      .withIndex('by_status_priority', (q) => q.eq('status', 'pending'))
+      .take(10)
+    
+    console.log(`Cron job processing: ${pendingJobs.length} pending jobs`)
+    
+    // In a real implementation, you would:
+    // 1. Call your worker service to process jobs
+    // 2. Or implement job processing logic here
+    // 3. Update job statuses accordingly
+    
+    return { processed: pendingJobs.length }
+  },
+})
+
+export const cleanupOldJobs = internalMutation({
+  args: {
+    olderThanDays: v.optional(v.number()),
+  },
+  handler: async (ctx, { olderThanDays = 7 }) => {
+    const cutoffDate = new Date()
+    cutoffDate.setDate(cutoffDate.getDate() - olderThanDays)
+    const cutoffIso = cutoffDate.toISOString()
+    
+    const oldJobs = await ctx.db
+      .query('jobs')
+      .withIndex('by_status_priority', (q) => q.eq('status', 'succeeded'))
+      .filter((q) => q.lt(q.field('updatedAt'), cutoffIso))
+      .collect()
+    
+    let deleted = 0
+    for (const job of oldJobs) {
+      await ctx.db.delete(job._id)
+      deleted++
+    }
+    
+    console.log(`Cleaned up ${deleted} old completed jobs`)
+    return { deleted }
   },
 })

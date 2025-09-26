@@ -149,12 +149,32 @@ export default defineSchema({
     .index('by_user_kind', ['userId', 'kind'])
     .index('by_kind_version', ['kind', 'version']),
 
+  uploaded_files: defineTable({
+    userId: v.string(),
+    fileName: v.string(),
+    fileSize: v.number(),
+    mimeType: v.string(),
+    storageRef: v.string(), // Reference to file in object storage
+    status: v.string(), // 'uploaded' | 'processing' | 'completed' | 'failed'
+    processingStartedAt: v.optional(v.string()),
+    processingCompletedAt: v.optional(v.string()),
+    errorMessage: v.optional(v.string()),
+    recordCount: v.optional(v.number()),
+    checksum: v.optional(v.string()),
+    createdAt: v.string(),
+    updatedAt: v.string(),
+  })
+    .index('by_user', ['userId'])
+    .index('by_status', ['status'])
+    .index('by_user_status', ['userId', 'status']),
+
   jobs: defineTable({
     type: v.string(),
     status: v.string(),
     priority: v.number(),
     userId: v.optional(v.string()),
     videoId: v.optional(v.string()),
+    fileId: v.optional(v.string()), // Reference to uploaded_files
     payload: v.optional(v.any()),
     attempts: v.number(),
     maxAttempts: v.optional(v.number()),
@@ -170,6 +190,7 @@ export default defineSchema({
     .index('by_type_status', ['type', 'status'])
     .index('by_lease', ['leaseExpiresAt'])
     .index('by_user', ['userId'])
+    .index('by_file', ['fileId'])
     .index('by_dedupe', ['dedupeKey'])
     .index('by_scheduled', ['scheduledFor']),
 })
