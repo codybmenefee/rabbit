@@ -7,8 +7,8 @@
  * without importing React components.
  */
 
-import { WatchRecord } from '../types/records'
-import { normalizeWatchRecord } from '../lib/aggregations'
+import { WatchRecord } from '../../lib/types'
+import { normalizeWatchRecord } from '../../lib/aggregations'
 import { parseISO, isValid, differenceInDays } from 'date-fns'
 
 console.log('🏗️ DATA STRUCTURE VALIDATION')

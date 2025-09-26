@@ -5,7 +5,7 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, PieCha
 import { Calendar, Clock, Zap, TrendingUp, Users, Play, Sun, Moon, Coffee } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { WatchRecord } from '@/types/records'
+import { WatchRecord } from '@/lib/types'
 import { computeViewingPatterns } from '@/lib/aggregations'
 
 interface HistoryInsightsProps {

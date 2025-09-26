@@ -28,6 +28,7 @@ Open [http://localhost:3000](http://localhost:3000) to view the application.
 - **Charts**: Recharts for data visualizations
 - **Auth**: Clerk for authentication
 - **Backend**: Convex for data storage and queries
+- **Worker**: Node-based background processor powered by Convex jobs
 - **Deployment**: Vercel
 
 ## 📁 Project Structure
@@ -36,12 +37,23 @@ Open [http://localhost:3000](http://localhost:3000) to view the application.
 rabbit/
 ├── app/                    # Next.js App Router pages
 ├── components/             # UI components organized by feature
+├── hooks/                  # Shared React hooks (add as they appear)
 ├── lib/                    # Core business logic and utilities
 ├── convex/                 # Backend functions and schema
-├── tests/                  # All tests (unit, integration, e2e)
+├── apps/worker/            # Background job runner for Convex jobs
 ├── scripts/                # Development and validation scripts
-└── docs/                   # Comprehensive documentation
+├── tests/                  # Automated tests and fixtures
+├── docs/                   # Comprehensive documentation
+├── public/                 # Static assets served by Next.js
+└── .claude/                # AI agent context and decision logs
 ```
+
+## 🔄 Data Flow
+
+1. **Import** – users upload Google Takeout HTML; `lib/parser.ts` normalizes records before Convex mutations persist them.
+2. **Store** – Convex (`convex/ingest.ts`, `convex/schema.ts`) keeps canonical watch data and enrichment status per user.
+3. **Analyze** – UI components pull records via Convex queries and run calculations with `lib/aggregations.ts` and `lib/advanced-analytics.ts`.
+4. **Enrich** – the worker in `apps/worker/` leases Convex jobs to fetch metadata, transcripts, and AI summaries, writing results back through `pipeline:*` mutations.
 
 ## 🛠️ Development
 
@@ -58,6 +70,7 @@ rabbit/
 npm run dev          # Start development server
 npm run build        # Build for production
 npm run start        # Start production server
+npm run worker:dev   # Run background job worker (requires service token)
 
 # Code Quality
 npm run lint         # Run ESLint

@@ -46,6 +46,16 @@ npm run validate:all
 - Deployment: Vercel
 - Testing: Playwright for E2E tests
 
+## System Design Philosophy
+
+- **Async first**: Heavy workloads (metadata fetch, transcripts, LLM summarisation, large aggregations) must run outside user requests. Always enqueue background jobs instead of blocking API routes or React components.
+- **Convex as the control plane**: Treat Convex tables as the source of truth for job state, transcripts, AI outputs, and user-facing data. Mutations should atomically update data and schedule follow-up work through `jobs:enqueue`/`enqueueJobInternal`.
+- **Workers own external calls**: Only the worker service should talk to third-party APIs (YouTube, transcription, LLM). Frontend and mutations signal intent by writing to queues or status tables.
+- **Large artifacts live in object storage**: Keep transcripts, summaries, and similar payloads in blob/object storage with pointers in Convex. Avoid storing megabyte-scale strings directly in documents.
+- **Idempotent, retry-friendly steps**: Every mutation and worker handler should be safe to retry. Use deterministic `dedupeKey` values and guard against duplicate inserts.
+- **User isolation**: Job orchestration must respect per-user scoping. Avoid cross-user fan-out or shared caches without explicit design.
+- **Progressive enrichment**: Ingest records quickly, then layer metadata, transcripts, and AI outputs as they complete. UI components should tolerate partial data and surface status where possible.
+
 ### Core Data Flow
 
 1. **Upload & Parse**: User uploads `watch-history.html` from Google Takeout
@@ -54,7 +64,7 @@ npm run validate:all
    - Handles multiple HTML formats and edge cases
 
 2. **Data Normalization**:
-   - `types/records.ts`: WatchRecord type with computed fields (year, month, week, hour)
+   - `lib/types.ts`: WatchRecord type with computed fields (year, month, week, hour)
    - Topic classification using keyword matching
    - Unique ID generation for deduplication
 
@@ -97,7 +107,7 @@ interface FilterOptions {
 ### Import Path Resolution
 
 - `@/*` maps to the project root
-- Example: `import { WatchRecord } from '@/types/records'`
+- Example: `import { WatchRecord } from '@/lib/types'`
 
 ## Critical Implementation Details
 
@@ -162,7 +172,7 @@ Run examples:
 ### Adding New Aggregation Functions
 
 1. Add function to `lib/aggregations.ts` or create new file in `lib/`
-2. Define return types in `types/records.ts` or `types/index.ts`
+2. Define return types in `lib/types.ts` and share them across layers.
 3. Import and use in dashboard components
 4. Add validation tests in `scripts/validation/`
 

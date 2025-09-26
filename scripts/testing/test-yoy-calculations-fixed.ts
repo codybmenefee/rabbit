@@ -8,7 +8,7 @@
  */
 
 import { computeKPIMetrics } from '../lib/aggregations'
-import { WatchRecord } from '../types/records'
+import { WatchRecord } from '../lib/types'
 
 console.log('🧮 YEAR-OVER-YEAR CALCULATION VERIFICATION (FIXED)')
 console.log('='.repeat(60))

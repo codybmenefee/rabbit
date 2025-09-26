@@ -5,7 +5,7 @@ import {
   ChannelSession,
   ChannelEvolution,
   FilterOptions
-} from '@/types/records'
+} from '@/lib/types'
 import {
   parseISO,
   format,

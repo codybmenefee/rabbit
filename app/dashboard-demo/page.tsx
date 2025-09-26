@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { MainDashboard, generateSampleData } from '@/components/dashboard/main-dashboard'
-import { WatchRecord } from '@/types/records'
+import { WatchRecord } from '@/lib/types'
 
 export default function DashboardDemo() {
   const [data, setData] = useState<WatchRecord[]>(() => generateSampleData())

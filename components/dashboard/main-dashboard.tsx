@@ -16,7 +16,7 @@ import {
 } from 'recharts'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { WatchRecord } from '@/types/records'
+import { WatchRecord } from '@/lib/types'
 import { computeSessionAnalysis } from '@/lib/advanced-analytics'
 import {
   eachDayOfInterval,

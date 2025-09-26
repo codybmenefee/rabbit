@@ -15,7 +15,7 @@ import {
 } from '../lib/advanced-analytics'
 import { generateDemoData } from '../lib/demo-data'
 import { computeKPIMetrics } from '../lib/aggregations'
-import { WatchRecord } from '../types/records'
+import { WatchRecord } from '../lib/types'
 
 // Validation results tracking
 interface ValidationResult {

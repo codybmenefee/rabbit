@@ -1,5 +1,7 @@
 # Migration Plan for Pre-computation Service
 
+> **Status:** Archived. The dedicated pre-computation service described here is not part of the current Convex-first architecture; these notes remain for future research only.
+
 ## Overview
 
 This document outlines the comprehensive migration plan for transitioning from client-side aggregation computation to a dedicated pre-computation service. The migration is designed to be gradual, safe, and reversible to minimize risk and ensure system stability.

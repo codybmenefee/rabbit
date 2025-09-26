@@ -1,4 +1,4 @@
-import { WatchRecord, ImportSummary } from '@/types/records'
+import { WatchRecord, ImportSummary } from '@/lib/types'
 
 /**
  * Minimal YouTube History Parser

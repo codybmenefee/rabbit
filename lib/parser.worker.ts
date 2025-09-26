@@ -1,4 +1,4 @@
-import type { ImportSummary, WatchRecord } from '@/types/records'
+import type { ImportSummary, WatchRecord } from '@/lib/types'
 import { YouTubeHistoryParser } from './parser'
 
 // Message types exchanged with the main thread

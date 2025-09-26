@@ -5,7 +5,7 @@ import { format, parseISO, isValid, differenceInMinutes, startOfDay, isSameDay }
 import { Clock, Play, Coffee, Moon, Sunrise, Sun, Sunset } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { WatchRecord } from '@/types/records'
+import { WatchRecord } from '@/lib/types'
 
 interface ViewingTimelineProps {
   records: WatchRecord[]

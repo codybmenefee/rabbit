@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useAuth } from '@clerk/nextjs'
-import { WatchRecord } from '@/types/records'
+import { WatchRecord } from '@/lib/types'
 import { useQuery, useMutation } from 'convex/react'
 import { api } from '@/convex/_generated/api'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -11,7 +11,7 @@ import { Badge } from '@/components/ui/badge'
 import { StorageStatus, StorageSource } from './storage-status'
 import { ValidationDashboard } from '@/components/validation/validation-dashboard'
 import { dataConsistencyValidator } from '@/lib/data-consistency-validator'
-import { DataConsistencyReport, ValidationStatus } from '@/types/validation'
+import { DataConsistencyReport, ValidationStatus } from '@/lib/types'
 import { 
   Cloud, 
   Trash2, 

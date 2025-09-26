@@ -3,7 +3,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
 import { Upload, FileText, AlertCircle, CheckCircle, X, Cloud } from 'lucide-react'
 import { useAuth } from '@clerk/nextjs'
-import { ImportSummary, WatchRecord } from '@/types/records'
+import { ImportSummary, WatchRecord } from '@/lib/types'
 import { Card } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
 import type { ParseWorkerMessage } from '@/lib/parser.worker'

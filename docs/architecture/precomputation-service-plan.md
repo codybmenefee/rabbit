@@ -1,5 +1,7 @@
 # Pre-computation Service Architecture Plan
 
+> **Status:** Archived. The dedicated pre-computation service described here is not part of the current Convex-first architecture; these notes remain for future research only.
+
 ## Overview
 
 This document outlines the design and implementation plan for a dedicated pre-computation service that will significantly improve frontend performance by pre-calculating aggregations and storing them with timestamps for fast retrieval.

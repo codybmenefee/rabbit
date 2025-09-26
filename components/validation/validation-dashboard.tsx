@@ -8,8 +8,8 @@ import {
   ValidationSeverity, 
   StorageSystemMetrics,
   ValidationHistoryEntry
-} from '@/types/validation'
-import { WatchRecord } from '@/types/records'
+} from '@/lib/types'
+import { WatchRecord } from '@/lib/types'
 import { useQuery } from 'convex/react'
 import { api } from '@/convex/_generated/api'
 import { dataConsistencyValidator } from '@/lib/data-consistency-validator'

@@ -2,7 +2,7 @@ import {
   WatchRecord,
   FilterOptions,
   TopicCount
-} from '@/types/records'
+} from '@/lib/types'
 import { 
   startOfMonth, 
   startOfQuarter, 

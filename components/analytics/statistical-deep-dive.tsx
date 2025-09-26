@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useMemo } from 'react'
-import { WatchRecord, FilterOptions } from '@/types/records'
+import { WatchRecord, FilterOptions } from '@/lib/types'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { 

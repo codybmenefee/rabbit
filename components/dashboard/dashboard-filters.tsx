@@ -5,7 +5,7 @@ import { Filter, Calendar, Play, Tag } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { TimeframeFilter, Product, FilterOptions } from '@/types/records'
+import { TimeframeFilter, Product, FilterOptions } from '@/lib/types'
 
 interface DashboardFiltersProps {
   filters: FilterOptions

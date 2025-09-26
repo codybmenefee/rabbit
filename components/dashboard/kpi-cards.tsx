@@ -4,7 +4,7 @@ import { motion } from 'framer-motion'
 import { TrendingUp, TrendingDown, Activity, Video, Users, Clock } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { formatNumber, formatDuration } from '@/lib/utils'
-import { KPIMetrics } from '@/types/records'
+import { KPIMetrics } from '@/lib/types'
 
 interface KPICardsProps {
   metrics: KPIMetrics

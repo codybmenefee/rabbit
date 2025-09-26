@@ -6,7 +6,7 @@ import { Play, ExternalLink, CheckSquare, Square, User, Calendar } from 'lucide-
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { WatchRecord } from '@/types/records'
+import { WatchRecord } from '@/lib/types'
 
 interface VideoListProps {
   records: WatchRecord[]

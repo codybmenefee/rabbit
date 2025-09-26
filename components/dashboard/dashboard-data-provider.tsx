@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { useAuth } from '@clerk/nextjs'
-import { WatchRecord } from '@/types/records'
+import { WatchRecord } from '@/lib/types'
 import { MainDashboard } from './main-dashboard'
 import { Loader2, Cloud, RefreshCw, Shield } from 'lucide-react'
 import { useQuery } from 'convex/react'

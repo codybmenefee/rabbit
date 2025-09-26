@@ -9,7 +9,7 @@ import {
   FilterOptions,
   AggregationResult,
   Product
-} from '@/types/records'
+} from '@/lib/types'
 import { 
   startOfMonth, 
   startOfQuarter, 

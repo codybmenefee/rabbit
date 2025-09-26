@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { Search, Filter, X, Calendar, Tag, Users, Monitor } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
-import { FilterOptions, TimeframeFilter, Product } from '@/types/records'
+import { FilterOptions, TimeframeFilter, Product } from '@/lib/types'
 
 interface HistorySearchFiltersProps {
   searchQuery: string

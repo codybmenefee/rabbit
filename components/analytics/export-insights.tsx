@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { WatchRecord } from '@/types/records'
+import { WatchRecord } from '@/lib/types'
 import { AdvancedKPIMetrics, SessionAnalysis, ViewingPattern } from '@/lib/advanced-analytics'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'

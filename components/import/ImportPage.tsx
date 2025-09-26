@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { ImportSummary as ImportSummaryType } from '@/types/records'
+import { ImportSummary as ImportSummaryType } from '@/lib/types'
 import { FileUpload } from './FileUpload'
 import { ImportSummary } from './ImportSummary'
 

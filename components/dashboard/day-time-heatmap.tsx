@@ -2,7 +2,7 @@
 
 import { motion } from 'framer-motion'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { DayHourMatrix } from '@/types/records'
+import { DayHourMatrix } from '@/lib/types'
 
 interface DayTimeHeatmapProps {
   data: DayHourMatrix[]

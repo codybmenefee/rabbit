@@ -1,5 +1,7 @@
 # Deprecated Code Analysis and Removal Plan
 
+> **Status:** Archived. The dedicated pre-computation service described here is not part of the current Convex-first architecture; these notes remain for future research only.
+
 ## Overview
 
 This document identifies all code that will become deprecated with the implementation of the pre-computation service and provides a detailed plan for migration and removal.

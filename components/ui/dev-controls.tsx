@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { getAllFixtures, generateDevelopmentSampleData, isDevelopmentEnvironment } from '@/lib/fixtures'
-import { WatchRecord } from '@/types/records'
+import { WatchRecord } from '@/lib/types'
 
 interface DevControlsProps {
   onLoadSampleData?: (data: WatchRecord[]) => void

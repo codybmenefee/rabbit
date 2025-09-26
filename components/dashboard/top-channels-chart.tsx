@@ -4,7 +4,7 @@ import { motion } from 'framer-motion'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { formatNumber, formatPercentage } from '@/lib/utils'
-import { ChannelMetrics } from '@/types/records'
+import { ChannelMetrics } from '@/lib/types'
 
 interface TopChannelsChartProps {
   data: ChannelMetrics[]

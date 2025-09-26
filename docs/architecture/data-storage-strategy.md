@@ -1,5 +1,7 @@
 # Data Storage Strategy for Pre-computed Aggregations
 
+> **Status:** Archived. The dedicated pre-computation service described here is not part of the current Convex-first architecture; these notes remain for future research only.
+
 ## Overview
 
 This document outlines the comprehensive data storage strategy for the pre-computation service, including data models, storage patterns, indexing strategies, and data lifecycle management.

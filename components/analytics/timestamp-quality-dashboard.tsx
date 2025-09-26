@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { Card } from '@/components/ui/card'
 import { getTimestampExtractionStats } from '@/lib/resilient-timestamp-extractor'
-import { TimestampParsingStats } from '@/types/records'
+import { TimestampParsingStats } from '@/lib/types'
 import { 
   Clock, 
   CheckCircle, 

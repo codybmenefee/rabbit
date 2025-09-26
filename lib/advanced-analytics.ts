@@ -1,4 +1,4 @@
-import { WatchRecord, FilterOptions } from '@/types/records'
+import { WatchRecord, FilterOptions } from '@/lib/types'
 import { 
   parseISO,
   format,

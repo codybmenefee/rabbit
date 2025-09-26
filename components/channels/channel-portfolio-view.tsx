@@ -14,7 +14,7 @@ import {
   Star,
   Activity
 } from 'lucide-react'
-import { WatchRecord, EnhancedChannelMetrics } from '@/types/records'
+import { WatchRecord, EnhancedChannelMetrics } from '@/lib/types'
 import { computeEnhancedChannelMetrics } from '@/lib/channel-aggregations'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'

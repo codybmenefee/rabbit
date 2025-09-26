@@ -3,7 +3,7 @@
 import { motion } from 'framer-motion'
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from 'recharts'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { MonthlyCount } from '@/types/records'
+import { MonthlyCount } from '@/lib/types'
 
 interface MonthlyTrendChartProps {
   data: MonthlyCount[]

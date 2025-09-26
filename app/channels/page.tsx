@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { motion } from 'framer-motion'
 import { Users, TrendingUp, Clock, BarChart3, Search, Filter, SortAsc } from 'lucide-react'
-import { WatchRecord } from '@/types/records'
+import { WatchRecord } from '@/lib/types'
 import { useQuery } from 'convex/react'
 import { api } from '@/convex/_generated/api'
 import { Button } from '@/components/ui/button'

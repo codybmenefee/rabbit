@@ -1,5 +1,7 @@
 # Implementation Roadmap for Pre-computation Service
 
+> **Status:** Archived. The dedicated pre-computation service described here is not part of the current Convex-first architecture; these notes remain for future research only.
+
 ## Overview
 
 This document provides a detailed, week-by-week implementation roadmap for building the pre-computation service to improve frontend performance. The roadmap is designed to be executed in parallel with existing development work and includes specific tasks, deliverables, and success criteria.

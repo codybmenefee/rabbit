@@ -5,7 +5,7 @@ import { TrendingUp, TrendingDown, Minus, Crown, Medal, Award, Tag } from 'lucid
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { formatPercentage } from '@/lib/utils'
-import { TopicCount } from '@/types/records'
+import { TopicCount } from '@/lib/types'
 
 interface TopicsLeaderboardProps {
   data: TopicCount[]

@@ -1,8 +1,15 @@
-# CLAUDE.md (.opencode)
+# CLAUDE.md (.opencode/)
 
-Purpose: Workspace settings or metadata used by the local tooling. Non-application code.
+Purpose: Metadata and configuration consumed by local OpenCode tooling; not part of runtime logic.
 
-- Do not add runtime dependencies here.
-- Keep files minimal and self-documented.
-- Safe to ignore during app builds and tests.
+Scope:
+- Inherit root guidelines; this folder rarely needs additional sub-docs.
+- Applies only to files supporting automation or editor integrations.
 
+Conventions:
+- Keep entries minimal, human-readable, and safe to ignore during builds/tests.
+- Avoid adding runtime dependencies or secrets—store only configuration necessary for tooling.
+- Document any non-obvious fields inline so other agents understand their effect.
+
+Maintenance:
+- Update when tooling expectations change; remove obsolete files to prevent drift.

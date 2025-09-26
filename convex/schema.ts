@@ -25,6 +25,8 @@ export default defineSchema({
     publishedAt: v.optional(v.string()),
     lang: v.optional(v.string()),
     metadata: v.optional(v.any()),
+    metadataStatus: v.optional(v.string()),
+    lastMetadataFetch: v.optional(v.string()),
   }).index('by_videoId', ['videoId']),
 
   channels: defineTable({
@@ -108,9 +110,66 @@ export default defineSchema({
     changeType: v.string(),
     recordCount: v.number(),
     changedAt: v.string(),
-    processed: v.boolean(),
+      processed: v.boolean(),
   })
     .index('by_user_processed', ['userId', 'processed'])
     .index('by_changed_at', ['changedAt']),
-})
 
+  transcripts: defineTable({
+    videoId: v.string(),
+    userId: v.optional(v.string()),
+    source: v.string(),
+    language: v.optional(v.string()),
+    status: v.string(),
+    storageRef: v.optional(v.string()),
+    checksum: v.optional(v.string()),
+    durationSec: v.optional(v.number()),
+    failureReason: v.optional(v.string()),
+    createdAt: v.string(),
+    updatedAt: v.string(),
+    metadata: v.optional(v.any()),
+  })
+    .index('by_video', ['videoId'])
+    .index('by_user', ['userId'])
+    .index('by_status', ['status']),
+
+  ai_outputs: defineTable({
+    videoId: v.string(),
+    userId: v.string(),
+    kind: v.string(),
+    model: v.optional(v.string()),
+    version: v.number(),
+    storageRef: v.optional(v.string()),
+    content: v.optional(v.any()),
+    metadata: v.optional(v.any()),
+    createdAt: v.string(),
+    updatedAt: v.string(),
+  })
+    .index('by_video_kind', ['videoId', 'kind'])
+    .index('by_user_kind', ['userId', 'kind'])
+    .index('by_kind_version', ['kind', 'version']),
+
+  jobs: defineTable({
+    type: v.string(),
+    status: v.string(),
+    priority: v.number(),
+    userId: v.optional(v.string()),
+    videoId: v.optional(v.string()),
+    payload: v.optional(v.any()),
+    attempts: v.number(),
+    maxAttempts: v.optional(v.number()),
+    scheduledFor: v.optional(v.string()),
+    leaseExpiresAt: v.optional(v.string()),
+    dedupeKey: v.optional(v.string()),
+    lastError: v.optional(v.string()),
+    result: v.optional(v.any()),
+    createdAt: v.string(),
+    updatedAt: v.string(),
+  })
+    .index('by_status_priority', ['status', 'priority'])
+    .index('by_type_status', ['type', 'status'])
+    .index('by_lease', ['leaseExpiresAt'])
+    .index('by_user', ['userId'])
+    .index('by_dedupe', ['dedupeKey'])
+    .index('by_scheduled', ['scheduledFor']),
+})

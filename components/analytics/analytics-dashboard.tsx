@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from 'react'
 import { motion } from 'framer-motion'
-import { FilterOptions, WatchRecord } from '@/types/records'
+import { FilterOptions, WatchRecord } from '@/lib/types'
 import { DashboardFilters } from '@/components/dashboard/dashboard-filters'
 import { computeAdvancedKPIs, computeSessionAnalysis, computeTimeSeriesData, computeViewingPatterns } from '@/lib/advanced-analytics'
 import { AdvancedKPICards } from './advanced-kpi-cards'

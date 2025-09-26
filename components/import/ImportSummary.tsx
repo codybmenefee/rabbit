@@ -1,6 +1,6 @@
 'use client'
 
-import type { ImportSummary } from '@/types/records'
+import type { ImportSummary } from '@/lib/types'
 import { Calendar, Users, Youtube, Music, BarChart3, CheckCircle } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'

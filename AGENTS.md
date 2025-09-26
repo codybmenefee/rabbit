@@ -1,48 +1,45 @@
-# Agent Working Agreements
+# Repository Guidelines
 
-This file defines how AI coding agents (Claude, Cursor, Codex) and humans collaborate in this repository. Its scope applies to the entire repo.
+## Project Structure & Module Organization
+- Next.js 15 App Router lives in `app/`; route groups (`app/analytics`, `app/history`) own feature pages.
+- Shared building blocks: `components/`, `hooks/`, `lib/` (analytics helpers, UI glue).
+- Async + backend: `convex/` schema/mutations, `apps/worker/src/` jobs, `scripts/` tooling.
+- Assets/tests: `public/` for static files, `tests/` for Playwright suites and fixtures.
+- Read the nearest `CLAUDE.md` before editing a folder; update it when structure or behavior shifts.
 
-## Source Of Truth
+## Build, Test, and Development Commands
+- `npm install` (root) bootstraps workspaces.
+- `npm run dev` starts the app; `npm run worker:dev` runs the background worker.
+- Ship pipeline: `npm run build` → `npm start`.
+- Quality gates: `npm run lint`, `npm run type-check`, `npm run quality` (lint + types + tests).
+- Analytics validation: `npm run validate:analytics`, `npm run validate:timestamps`, `npm run validate:stats`.
 
-- Prefer folder-local `CLAUDE.md` and `agent.md` for context and guardrails.
-- When missing, inherit from the nearest parent folder. Root `CLAUDE.md` and this `AGENTS.md` are global fallbacks.
+## Coding Style & Naming Conventions
+- Strict TypeScript; justify any `any` usage inline.
+- Prettier defaults (2-space, single quotes) via `npm run format`.
+- Components/hooks use `PascalCase`/`camelCase`; files prefer `kebab-case` (`components/dashboard/metrics-card.tsx`).
+- Favor providers/hooks over deeply threaded props.
 
-## Safety & Guardrails
+## Testing Guidelines
+- Playwright specs in `tests/` named `feature-name.spec.ts`; run via `npm run test` or `npm run test:e2e` (spawns dev server).
+- Pair analytics changes with validation scripts/fixtures so `npm run validate:all` stays green.
+- Document new fixtures or mocks alongside the suites that rely on them.
 
-- Keep changes scoped to the folder you are working in; do not restructure directories without explicit instruction.
-- Do not modify generated or build artifacts (e.g., `.next/`, `node_modules/`, `playwright-report/`, `test-results/`, `convex/_generated/`).
-- Never commit secrets. Use `.env.local` (ignored) and sample values in `.env.example`.
-- Maintain TypeScript strictness and avoid `any` unless justified locally with comments.
-- Prefer small, incremental changes with clear commit messages and runnable steps.
+## Commit & Pull Request Guidelines
+- Commit subjects: short, imperative intent (`feat: add session trend banner`).
+- Separate refactors from behavioral changes.
+- PRs link issues, summarize user impact, list validation commands, and show UI updates when visuals change.
+- Note follow-up work or trade-offs explicitly for reviewers.
 
-## Validation
+## Security & Configuration Tips
+- Secrets stay in `.env.local`; never commit runtime credentials.
+- Use non-production Clerk/Convex keys while testing.
+- Verify user scoping any time you touch request handlers or Convex functions.
 
-- The Next.js app lives in `apps/web/`. Validate changes with:
-  - `npm install` at repo root (workspaces) or inside `apps/web/`
-  - `npm run lint`, `npm run dev` (from root or `apps/web/`)
-  - `npx playwright test` (inside `apps/web/`) for E2E checks
-- For analytics code in `apps/web/lib/`, prefer pure functions with unit coverage; validate via scripts in `apps/web/scripts/`.
-
-## Auth & Backend
-
-- Authentication: Clerk (`apps/web/middleware.ts`, `.clerk/`).
-- Data store: Convex (no separate SQL database). Keep queries/mutations under `apps/web/convex/` and schemas in `apps/web/convex/schema.ts`.
-- Do not reintroduce `db/` folders or SQL migrations unless the team explicitly decides to add a second datastore.
-
-## Folder Conventions
-
-- Each significant folder should contain a single `CLAUDE.md` with local guidance (purpose, conventions, quick commands, pitfalls).
-- Avoid duplicating root content; include only what’s different for that folder and link back to root docs when needed.
-- Root uses this `AGENTS.md` for cross-agent/global rules; subfolders standardize on `CLAUDE.md` for specifics.
-
-## Decision Logs
-
-- Record notable architecture or behavior changes in `.claude/context/recent-changes.md` and keep `.claude/context/current-state.md` accurate.
-
-## Contact Points
-
-- Humans own direction and acceptance. Agents should propose, not assume, broad refactors.
-
-## Change Management
-
-- Treat edits to `AGENTS.md`/`CLAUDE.md` as code changes; keep reviews and history clear.
+## Agent Documentation Standards
+- `AGENTS.md` is the root contract; folder `CLAUDE.md` files refine instructions while inheriting parent rules.
+- Add `CLAUDE.md` only when extra context is needed; subfolders inherit the nearest ancestor file.
+- Keep entries concise (<400 words) with actionable bullets: commands, conventions, key files, hazards.
+- Link to deeper docs instead of duplicating detail; highlight what differs from parent guidance.
+- Treat these files like code—version, review, and prune outdated notes promptly.
+- Agents must read relevant `CLAUDE.md` files, follow the hierarchy, and escalate missing/conflicting guidance instead of guessing.

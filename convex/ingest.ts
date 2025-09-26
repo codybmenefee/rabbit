@@ -1,5 +1,6 @@
 import { mutation } from './_generated/server'
 import { v } from 'convex/values'
+import { enqueueJobInternal } from './jobs'
 
 export const ingestWatchRecords = mutation({
   args: { records: v.array(v.any()) },
@@ -10,6 +11,8 @@ export const ingestWatchRecords = mutation({
 
     let inserted = 0
     let skipped = 0
+
+    const nowIso = new Date().toISOString()
 
     for (const r of records) {
       const videoId: string | null = r.videoId ?? null
@@ -31,7 +34,14 @@ export const ingestWatchRecords = mutation({
       // Upsert video
       const existingVideo = await ctx.db.query('videos').withIndex('by_videoId', q => q.eq('videoId', videoId)).unique()
       if (!existingVideo) {
-        await ctx.db.insert('videos', { videoId, channelId: channelId ?? undefined, title: r.videoTitle ?? undefined })
+        await ctx.db.insert('videos', {
+          videoId,
+          channelId: channelId ?? undefined,
+          title: r.videoTitle ?? undefined,
+          metadata: undefined,
+          metadataStatus: 'pending',
+          lastMetadataFetch: undefined,
+        })
       } else {
         const patch: any = {}
         if (!existingVideo.channelId && channelId) patch.channelId = channelId
@@ -56,6 +66,45 @@ export const ingestWatchRecords = mutation({
         raw: r,
       })
       inserted++
+
+      await enqueueJobInternal(ctx, {
+        type: 'video.fetch_metadata',
+        userId,
+        videoId,
+        priority: 50,
+        payload: { reason: 'ingest' },
+        dedupeKey: `video.fetch_metadata:${videoId}`,
+      })
+
+      await enqueueJobInternal(ctx, {
+        type: 'video.ensure_transcript',
+        userId,
+        videoId,
+        priority: 100,
+        payload: { reason: 'ingest' },
+        dedupeKey: `video.ensure_transcript:${videoId}`,
+      })
+
+      await enqueueJobInternal(ctx, {
+        type: 'video.generate_summary',
+        userId,
+        videoId,
+        priority: 110,
+        payload: { reason: 'ingest' },
+        dedupeKey: `video.generate_summary:${videoId}`,
+        scheduledFor: new Date(Date.now() + 60 * 1000).toISOString(),
+      })
+
+    }
+
+    if (inserted > 0) {
+      await ctx.db.insert('data_change_log', {
+        userId,
+        changeType: 'ingest',
+        recordCount: inserted,
+        changedAt: nowIso,
+        processed: false,
+      })
     }
 
     return { inserted, skipped }

@@ -3,7 +3,7 @@
 import { useMemo } from 'react'
 import { motion } from 'framer-motion'
 import { BarChart3, Users, Link, TrendingUp, Target } from 'lucide-react'
-import { WatchRecord, ChannelRelationship } from '@/types/records'
+import { WatchRecord, ChannelRelationship } from '@/lib/types'
 import { computeChannelRelationships } from '@/lib/channel-aggregations'
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'

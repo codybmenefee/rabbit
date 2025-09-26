@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import Link from 'next/link'
-import { WatchRecord } from '@/types/records'
+import { WatchRecord } from '@/lib/types'
 import { useQuery } from 'convex/react'
 import { api } from '@/convex/_generated/api'
 import { AnalyticsDashboard } from '@/components/analytics/analytics-dashboard'

@@ -1,103 +1,27 @@
-# Business Logic Directory
+# CLAUDE.md (lib/)
 
-## Purpose
-Pure functions for data processing, analytics calculations, and business logic. All functions are deterministic, side-effect-free, and strongly typed.
+Purpose: Pure TypeScript utilities for parsing, normalization, analytics, and other business logic shared by frontend, Convex, and the worker.
 
-## Quick Commands
-- `npm run validate:analytics` - Test analytics functions
-- `npm run validate:parsers` - Test data parsers
-- `npm run validate:all` - Run all validation scripts
-- `npm run dev:parse` - Debug parsing with sample data
+Scope:
+- Inherit root and adjacent folder guidance; coordinate with `convex/` and the worker docs before changing shared types.
+- Applies to modules under `lib/` including `aggregations`, `parsers`, and supporting helpers.
 
-## Conventions
+Conventions:
+- Keep functions deterministic and side-effect free; avoid browser or Node globals that break cross-runtime reuse.
+- Export explicit types from `lib/types.ts`; do not introduce `any` without an inline justification.
+- Structure modules by domain (`aggregations`, `advanced-analytics`, `channel-aggregations`, etc.) and keep functions focused.
+- Document tricky algorithms with concise comments or JSDoc so agents understand intent.
 
-### Function Design
-- Write pure, side-effect-free functions
-- Use strong TypeScript typing (avoid `any`)
-- Keep functions under 50 lines
-- Single responsibility per function
-- Document complex algorithms with JSDoc
+Validation:
+- `npm run validate:analytics`, `npm run validate:timestamps`, `npm run validate:stats` to cover key pipelines.
+- `npm run quality` before merging large logic changes (lint, types, Playwright smoke).
+- Add scenario-based fixtures in `scripts/validation/` when introducing new calculations.
 
-### File Organization
-- `types.ts` - All type definitions
-- `utils.ts` - Common utilities
-- `analytics/` - Analytics calculations and insights
-- `parsers/` - Data parsing utilities
-- `storage/` - Storage abstractions
+Pitfalls:
+- Mutating arguments or shared state—always clone structures before modification.
+- Recomputing expensive aggregates in UI/worker code; centralize logic here and reuse.
+- Losing timezone fidelity when parsing timestamps; rely on existing parsing helpers.
 
-### Error Handling
-```typescript
-// Use Result pattern for operations that can fail
-type Result<T, E = Error> = 
-  | { success: true; data: T }
-  | { success: false; error: E }
-
-// Example usage
-function parseData(input: string): Result<WatchRecord[]> {
-  try {
-    const records = parseYouTubeHistory(input)
-    return { success: true, data: records }
-  } catch (error) {
-    return { success: false, error: error as Error }
-  }
-}
-```
-
-## Dependencies
-- No external dependencies in core functions
-- Use types from `./types.ts`
-- Date manipulation with `date-fns`
-- Validation with `zod`
-
-## Testing
-- Unit tests for all functions in `tests/unit/lib/`
-- Validation scripts in `scripts/validation/`
-- Test with real data fixtures
-- Aim for 100% function coverage
-
-## Data Flow
-1. **Parsing**: Raw HTML → `WatchRecord[]`
-2. **Normalization**: Add computed fields (year, month, etc.)
-3. **Aggregation**: Group and calculate metrics
-4. **Analysis**: Generate insights and trends
-
-## Performance Guidelines
-- Use efficient data structures
-- Avoid unnecessary iterations
-- Cache expensive calculations
-- Use Web Workers for heavy parsing
-
-## Common Patterns
-
-### Aggregation Functions
-```typescript
-export function computeKPIs(records: WatchRecord[]): KPIMetrics {
-  return {
-    totalVideos: records.length,
-    totalChannels: new Set(records.map(r => r.channelTitle)).size,
-    // ... other metrics
-  }
-}
-```
-
-### Parser Functions
-```typescript
-export function parseYouTubeHistory(html: string): WatchRecord[] {
-  // Parse HTML and extract records
-  // Handle multiple formats
-  // Validate and normalize data
-}
-```
-
-## Pitfalls
-1. **Don't mutate input data** - Always return new objects
-2. **Don't use external APIs** - Keep functions pure
-3. **Don't ignore edge cases** - Handle all input variations
-4. **Don't skip validation** - Validate all inputs
-5. **Don't forget timezone handling** - Be explicit about dates
-
-## Links
-- [Analytics Functions](./analytics/)
-- [Parser Implementation](./parsers/)
-- [Type Definitions](./types.ts)
-- [Validation Scripts](../scripts/validation/)
+References:
+- `scripts/CLAUDE.md` for validation tooling.
+- `convex/CLAUDE.md` and `apps/worker/CLAUDE.md` for how this logic feeds async jobs.

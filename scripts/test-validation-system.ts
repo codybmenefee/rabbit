@@ -11,7 +11,7 @@
  * - Mock data scenarios
  */
 
-import { WatchRecord } from '../types/records'
+import { WatchRecord } from '../lib/types'
 import { 
   DataConsistencyValidator,
   createDataConsistencyValidator 
@@ -20,7 +20,7 @@ import {
   ValidationConfig,
   DataQualityMetrics,
   StorageSystemMetrics 
-} from '../types/validation'
+} from '../lib/types'
 
 // Mock data generators
 function generateMockRecord(id: string, overrides: Partial<WatchRecord> = {}): WatchRecord {

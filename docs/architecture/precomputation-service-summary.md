@@ -1,5 +1,7 @@
 # Pre-computation Service Implementation Summary
 
+> **Status:** Archived. The dedicated pre-computation service described here is not part of the current Convex-first architecture; these notes remain for future research only.
+
 ## Executive Summary
 
 This document provides a comprehensive plan for implementing a dedicated pre-computation service to significantly improve frontend performance by pre-calculating aggregations and storing them with timestamps for fast retrieval. The implementation will reduce dashboard load times by 80% and filter change response times by 90%.
