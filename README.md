@@ -14,11 +14,11 @@ npm install
 cp .env.example .env.local
 # Edit .env.local with your Clerk and Convex credentials
 
-# Start development server
+# Start development server (runs on dedicated port 4000)
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) to view the application.
+Open [http://localhost:4000](http://localhost:4000) to view the application.
 
 ## 🏗️ Architecture
 
@@ -67,9 +67,9 @@ rabbit/
 
 ```bash
 # Development
-npm run dev          # Start development server
+npm run dev          # Start development server (port 4000)
 npm run build        # Build for production
-npm run start        # Start production server
+npm run start        # Start production server (port 4000)
 npm run worker:dev   # Run background job worker (requires service token)
 
 # Code Quality

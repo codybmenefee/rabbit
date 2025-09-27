@@ -4,9 +4,9 @@
   "description": "YouTube Analytics Intelligence Platform - A Next.js-based analytics dashboard for visualizing YouTube viewing history data from Google Takeout exports",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev -p 4000",
     "build": "next build",
-    "start": "next start",
+    "start": "next start -p 4000",
     "lint": "next lint",
     "type-check": "tsc --noEmit",
     "format": "prettier --write .",
