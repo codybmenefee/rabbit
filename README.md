@@ -1,12 +1,12 @@
-# Rabbit - YouTube Analytics Intelligence Platform
+# Rabbit - Minimal YouTube Analytics Dashboard
 
-A Next.js-based analytics dashboard for visualizing YouTube viewing history data from Google Takeout exports. Built with TypeScript, Tailwind CSS, and Recharts for data visualization.
+A Next.js-based dashboard for viewing pre-loaded YouTube viewing history data. Built with TypeScript, Tailwind CSS, and Recharts for data visualization. Users authenticate via Clerk and view their data from Convex.
 
 ## 🚀 Quick Start
 
 ```bash
 # Clone and setup
-git clone [https://github.com/codybmenefee/rabbit]
+git clone https://github.com/codybmenefee/rabbit
 cd rabbit
 npm install
 
@@ -14,21 +14,20 @@ npm install
 cp .env.example .env.local
 # Edit .env.local with your Clerk and Convex credentials
 
-# Start development server (runs on dedicated port 4000)
+# Start development server (port 4000)
 npm run dev
 ```
 
-Open [http://localhost:4000](http://localhost:4000) to view the application.
+Open http://localhost:4000 to view the application. After login, you'll see the dashboard with your data.
 
 ## 🏗️ Architecture
 
 - **Frontend**: Next.js 15 with App Router
 - **Language**: TypeScript with strict mode
-- **Styling**: Tailwind CSS with glassmorphism design
+- **Styling**: Tailwind CSS
 - **Charts**: Recharts for data visualizations
 - **Auth**: Clerk for authentication
 - **Backend**: Convex for data storage and queries
-- **Worker**: Node-based background processor powered by Convex jobs
 - **Deployment**: Vercel
 
 ## 📁 Project Structure
@@ -36,29 +35,25 @@ Open [http://localhost:4000](http://localhost:4000) to view the application.
 ```
 rabbit/
 ├── app/                    # Next.js App Router pages
-├── components/             # UI components organized by feature
-├── hooks/                  # Shared React hooks (add as they appear)
-├── lib/                    # Core business logic and utilities
-├── convex/                 # Backend functions and schema
-├── apps/worker/            # Background job runner for Convex jobs
-├── scripts/                # Development and validation scripts
-├── tests/                  # Automated tests and fixtures
-├── docs/                   # Comprehensive documentation
-├── public/                 # Static assets served by Next.js
-└── .claude/                # AI agent context and decision logs
+├── components/             # UI components (dashboard, layout, ui)
+├── lib/                    # Core types and basic utilities
+├── convex/                 # Backend schema and queries
+├── tests/                  # Playwright E2E tests
+├── docs/                   # Setup documentation
+└── ...                     # Config files (package.json, tsconfig.json, etc.)
 ```
 
 ## 🔄 Data Flow
 
-1. **Import** – users upload Google Takeout HTML; `lib/parser.ts` normalizes records before Convex mutations persist them.
-2. **Store** – Convex (`convex/ingest.ts`, `convex/schema.ts`) keeps canonical watch data and enrichment status per user.
-3. **Analyze** – UI components pull records via Convex queries and run calculations with `lib/aggregations.ts` and `lib/advanced-analytics.ts`.
-4. **Enrich** – the worker in `apps/worker/` leases Convex jobs to fetch metadata, transcripts, and AI summaries, writing results back through `pipeline:*` mutations.
+1. **Authentication**: Users sign in via Clerk at /sign-in.
+2. **Dashboard**: Protected route at / fetches user records from Convex and displays KPIs/charts.
+
+Data is assumed pre-loaded into Convex; no upload functionality.
 
 ## 🛠️ Development
 
 ### Prerequisites
-- Node.js 18+ 
+- Node.js 18+
 - npm 8+
 - Clerk account for authentication
 - Convex account for backend
@@ -70,7 +65,6 @@ rabbit/
 npm run dev          # Start development server (port 4000)
 npm run build        # Build for production
 npm run start        # Start production server (port 4000)
-npm run worker:dev   # Run background job worker (requires service token)
 
 # Code Quality
 npm run lint         # Run ESLint
@@ -78,14 +72,11 @@ npm run type-check   # Run TypeScript checks
 npm run format       # Format code with Prettier
 
 # Testing
-npm run test         # Run all tests
-npm run test:unit    # Run unit tests
+npm run test         # Run E2E tests
 npm run test:e2e     # Run E2E tests
 
-# Validation
-npm run validate:all # Run all validation scripts
-npm run validate:analytics  # Validate analytics functions
-npm run validate:parsers    # Validate data parsers
+# Quality
+npm run quality      # Lint + types + tests
 ```
 
 ### Development Workflow
@@ -96,15 +87,15 @@ npm run validate:parsers    # Validate data parsers
    ```
 
 2. **Make Changes**
-   - Follow the established patterns in each folder
-   - Update relevant `CLAUDE.md` files if patterns change
+   - Follow patterns in each folder
+   - Update relevant CLAUDE.md files if patterns change
    - Add tests for new functionality
 
 3. **Validate Changes**
    ```bash
    npm run lint
+   npm run type-check
    npm run test
-   npm run validate:all
    ```
 
 4. **Submit Pull Request**
@@ -114,49 +105,37 @@ npm run validate:parsers    # Validate data parsers
 
 ## 📚 Documentation
 
-- [Contributing Guidelines](./CONTRIBUTING.md) - How to contribute to the project
-- [Architecture Overview](./docs/architecture/) - Technical architecture details
-- [Development Setup](./docs/development/setup.md) - Detailed setup instructions
-- [API Documentation](./docs/api/) - Backend API reference
+- [Contributing Guidelines](./CONTRIBUTING.md)
+- [Development Setup](./docs/development/setup.md)
 
 ## 🧪 Testing
 
-The project uses multiple testing strategies:
-
-- **Unit Tests**: Test individual functions and components
-- **Integration Tests**: Test component interactions
-- **E2E Tests**: Test complete user workflows with Playwright
-- **Validation Scripts**: Test data integrity and analytics accuracy
+Uses Playwright for E2E tests covering auth and dashboard loading.
 
 ## 🚀 Deployment
 
-The application is deployed on Vercel with automatic deployments from the main branch.
+Deployed on Vercel with automatic deployments from main.
 
 ### Environment Variables
 
-Required environment variables (see `.env.example`):
-
-```bash
-NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=your_clerk_key
-CLERK_SECRET_KEY=your_clerk_secret
-NEXT_PUBLIC_CONVEX_URL=your_convex_url
-CONVEX_DEPLOY_KEY=your_convex_deploy_key
-```
+See `.env.example`:
+- NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
+- CLERK_SECRET_KEY
+- NEXT_PUBLIC_CONVEX_URL
+- CONVEX_DEPLOY_KEY (for dev)
 
 ## 🤝 Contributing
 
-We welcome contributions! Please see [CONTRIBUTING.md](./CONTRIBUTING.md) for detailed guidelines.
+See [CONTRIBUTING.md](./CONTRIBUTING.md) for guidelines.
 
 ## 📄 License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+MIT License - see [LICENSE](LICENSE).
 
 ## 🆘 Support
 
-- Check the [documentation](./docs/) for detailed guides
-- Open an issue for bugs or feature requests
-- Join our discussions for questions and ideas
+- Check [docs](./docs/) for setup
+- Open issues for bugs/features
 
 ---
-
 Built with ❤️ by the Rabbit team

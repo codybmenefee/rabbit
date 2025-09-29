@@ -44,7 +44,7 @@ export const summary = query({
     // KPIs
     const videos = recent.length
     const minutesWatched = Math.round(recent.reduce((acc, e) => acc + ((e.watchedSeconds ?? 0) / 60), 0))
-    const uniqueChannels = new Set(recent.map(e => e.channelId).filter(Boolean)).size
+    const uniqueChannels = new Set(recent.map(e => e.channelTitle || e.channelId).filter(Boolean)).size
 
     // Series by day
     const byDay = new Map<string, number>()
@@ -57,13 +57,14 @@ export const summary = query({
     // Top channels
     const byChannel = new Map<string, number>()
     for (const e of recent) {
-      if (!e.channelId) continue
-      byChannel.set(e.channelId, (byChannel.get(e.channelId) ?? 0) + Math.round((e.watchedSeconds ?? 0) / 60))
+      const channelKey = e.channelTitle || e.channelId
+      if (!channelKey) continue
+      byChannel.set(channelKey, (byChannel.get(channelKey) ?? 0) + Math.round((e.watchedSeconds ?? 0) / 60))
     }
     const topChannels = Array.from(byChannel.entries())
       .sort((a,b) => b[1]-a[1])
       .slice(0,10)
-      .map(([channelId, minutes], i) => ({ channelId, name: null, minutes, rank: i+1 }))
+      .map(([channelKey, minutes], i) => ({ channelId: channelKey, name: channelKey, minutes, rank: i+1 }))
 
     return {
       period: `last_${lookback}d`,
@@ -74,7 +75,7 @@ export const summary = query({
   }
 })
 
-// Return the user's raw records (as saved during ingest) for client aggregations
+// Return the user's raw records for client aggregations
 export const records = query({
   args: { limit: v.optional(v.number()), days: v.optional(v.number()) },
   handler: async (ctx, { limit, days }) => {
@@ -100,51 +101,19 @@ export const records = query({
       ? events.filter(e => !e.startedAt || new Date(e.startedAt) >= since)
       : events
 
-    // We persisted the original parsed record in `raw`. Return it to the client.
-    // Ensure each record has a stable id; fall back to Convex _id if missing.
+    // Return raw data from the event's raw field, with stable id
     return filtered.map(e => {
-      const raw = (e as any).raw ?? {}
+      const raw = e.raw ?? {}
       if (!raw.id) {
         raw.id = `${e._id}`
       }
       return {
         ...raw,
-        startedAt: e.startedAt
+        startedAt: e.startedAt,
+        channelTitle: e.channelTitle || raw.channelTitle,
+        channelId: e.channelId || raw.channelUrl,
+        watchedSeconds: e.watchedSeconds,
       }
     })
   }
-})
-
-export const getRecentWatchEvents = query({
-  args: {
-    since: v.string(),
-  },
-  handler: async (ctx, { since }) => {
-    const identity = await ctx.auth.getUserIdentity()
-    if (!identity?.subject) throw new Error('UNAUTHORIZED')
-    const userId = identity.subject
-
-    return ctx.db
-      .query('watch_events')
-      .withIndex('by_user_time', (q) => 
-        q.eq('userId', userId).gte('startedAt', since)
-      )
-      .collect()
-  },
-})
-
-export const videoCount = query({
-  args: {},
-  handler: async (ctx) => {
-    const identity = await ctx.auth.getUserIdentity()
-    if (!identity?.subject) throw new Error('UNAUTHORIZED')
-    const userId = identity.subject
-
-    const events = await ctx.db
-      .query('watch_events')
-      .withIndex('by_user', q => q.eq('userId', userId))
-      .collect()
-
-    return { count: events.length }
-  },
 })

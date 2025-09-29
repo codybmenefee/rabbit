@@ -18,14 +18,10 @@ import { cn } from '@/lib/utils'
 
 const navigation = [
   { name: 'Dashboard', href: '/', icon: Home },
-  { name: 'Video', href: '/history', icon: Clock },
-  { name: 'Channel', href: '/channels', icon: Users },
-]
-
-const bottomNavigation = [
-  { name: 'Import Data', href: '/import', icon: Upload },
   { name: 'Settings', href: '/settings', icon: Settings },
 ]
+
+const bottomNavigation = []
 
 interface SidebarProps {
   className?: string

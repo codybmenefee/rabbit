@@ -1,7 +1,6 @@
 'use client'
 
 import { LoginButton } from '@/components/auth/login-button'
-import { StorageManagement } from '@/components/storage/storage-management'
 
 export const dynamic = 'force-dynamic'
 
@@ -12,37 +11,14 @@ export default function SettingsPage() {
         {/* Header */}
         <div>
           <h1 className="text-3xl font-bold text-white mb-2">Settings</h1>
-          <p className="text-gray-400">Manage your account and application preferences</p>
+          <p className="text-gray-400">Manage your account</p>
         </div>
 
         {/* Authentication Section */}
         <div className="rounded-xl border bg-card/50 backdrop-blur-sm p-6">
           <h2 className="text-xl font-semibold text-white mb-4">Authentication</h2>
-          <p className="text-gray-400 mb-6">Sign in with your Google account to save your analytics data</p>
+          <p className="text-gray-400 mb-6">Sign in with your account</p>
           <LoginButton />
-        </div>
-
-        {/* Data Management Section */}
-        <div className="space-y-6">
-          <div>
-            <h2 className="text-xl font-semibold text-white mb-4">Data Management</h2>
-            <p className="text-gray-400 mb-6">Manage your YouTube watch history storage and synchronization</p>
-          </div>
-          
-          <StorageManagement />
-        </div>
-
-        {/* Privacy Section */}
-        <div className="rounded-xl border bg-card/50 backdrop-blur-sm p-6">
-          <h2 className="text-xl font-semibold text-white mb-4">Privacy</h2>
-          <div className="space-y-4">
-            <div>
-              <h3 className="text-lg font-medium text-white mb-2">Data Privacy</h3>
-              <p className="text-gray-400 text-sm">
-                Your YouTube data is processed entirely client-side. We never send your viewing history to external servers for analysis.
-              </p>
-            </div>
-          </div>
         </div>
       </div>
     </div>
