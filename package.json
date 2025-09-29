@@ -8,11 +8,7 @@
     "build": "next build",
     "start": "next start -p 4000",
     "lint": "next lint",
-    "type-check": "tsc --noEmit",
-    "format": "prettier --write .",
-    "test": "playwright test",
-    "test:e2e": "playwright test",
-    "quality": "npm run lint && npm run type-check && npm run test"
+    "type-check": "tsc --noEmit"
   },
   "dependencies": {
     "@clerk/nextjs": "^6.31.6",
@@ -34,7 +30,6 @@
     "zod": "^3.23.8"
   },
   "devDependencies": {
-    "@playwright/test": "^1.54.2",
     "@tailwindcss/typography": "^0.5.16",
     "autoprefixer": "^10.4.16",
     "eslint": "^9.33.0",
