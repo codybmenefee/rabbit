@@ -1,4 +1,4 @@
-import { mutation, query } from './_generated/server'
+import { mutation, query, internalQuery, internalMutation } from './_generated/server'
 import { v } from 'convex/values'
 
 export const create = mutation({
@@ -90,5 +90,47 @@ export const getById = query({
     }
 
     return upload
+  },
+})
+
+// Internal functions for admin/cron access (no user identity required)
+export const listPendingInternal = internalQuery({
+  args: { limit: v.optional(v.number()) },
+  handler: async (ctx, { limit = 10 }) => {
+    return await ctx.db
+      .query('uploads')
+      .filter(q => q.eq(q.field('status'), 'pending'))
+      .order('desc')
+      .take(limit)
+  },
+})
+
+export const listFailedInternal = internalQuery({
+  args: { limit: v.optional(v.number()) },
+  handler: async (ctx, { limit = 10 }) => {
+    return await ctx.db
+      .query('uploads')
+      .filter(q => q.eq(q.field('status'), 'failed'))
+      .order('desc')
+      .take(limit)
+  },
+})
+
+export const markStatusInternal = internalMutation({
+  args: {
+    id: v.id('uploads'),
+    status: v.string(),
+    processedAt: v.optional(v.string()),
+    error: v.optional(v.string()),
+  },
+  handler: async (ctx, { id, ...updateFields }) => {
+    await ctx.db.patch(id, updateFields)
+  },
+})
+
+export const getByIdInternal = internalQuery({
+  args: { id: v.id('uploads') },
+  handler: async (ctx, { id }) => {
+    return await ctx.db.get(id)
   },
 })

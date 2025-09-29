@@ -1,6 +1,6 @@
 import { action } from './_generated/server'
 import { v } from 'convex/values'
-import { api } from './_generated/api'
+import { api, internal } from './_generated/api'
 import { YouTubeHistoryParser, ParsedWatchEvent } from '../lib/parser'
 
 export const processUpload = action({
@@ -9,7 +9,7 @@ export const processUpload = action({
   },
   handler: async (ctx: any, { uploadId }: { uploadId: any }): Promise<{ success: boolean; eventsProcessed: number }> => {
     // Get the upload record
-    const upload = await ctx.runQuery(api.uploads.getById, { id: uploadId })
+    const upload = await ctx.runQuery(internal.uploads.getByIdInternal, { id: uploadId })
     if (!upload) {
       throw new Error('Upload not found')
     }
@@ -20,7 +20,7 @@ export const processUpload = action({
 
     try {
       // Update status to processing
-      await ctx.runMutation(api.uploads.updateStatus, {
+      await ctx.runMutation(internal.uploads.markStatusInternal, {
         id: uploadId,
         status: 'processing',
       })
@@ -52,7 +52,7 @@ export const processUpload = action({
         if (batch.length >= batchSize) {
           await Promise.all(
             batch.map((event: ParsedWatchEvent) =>
-              ctx.runMutation(api.watch_events.create, {
+              ctx.runMutation(internal.watch_events.createInternal, {
                 userId: upload.userId,
                 videoId: event.videoId,
                 channelTitle: event.channelTitle,
@@ -75,7 +75,7 @@ export const processUpload = action({
       if (batch.length > 0) {
         await Promise.all(
           batch.map((event: ParsedWatchEvent) =>
-            ctx.runMutation(api.watch_events.create, {
+            ctx.runMutation(internal.watch_events.createInternal, {
               userId: upload.userId,
               videoId: event.videoId,
               channelTitle: event.channelTitle,
@@ -92,7 +92,7 @@ export const processUpload = action({
       }
 
       // Update status to completed
-      await ctx.runMutation(api.uploads.updateStatus, {
+      await ctx.runMutation(internal.uploads.markStatusInternal, {
         id: uploadId,
         status: 'completed',
         processedAt: new Date().toISOString(),
@@ -107,13 +107,74 @@ export const processUpload = action({
       console.error('Processing failed:', error)
 
       // Update status to failed
-      await ctx.runMutation(api.uploads.updateStatus, {
+      await ctx.runMutation(internal.uploads.markStatusInternal, {
         id: uploadId,
         status: 'failed',
         error: error instanceof Error ? error.message : 'Unknown error',
       })
 
       throw error
+    }
+  },
+})
+
+// Bulk processor for cron or manual triggering
+export const processPendingUploads = action({
+  args: { max: v.optional(v.number()) },
+  handler: async (ctx: any, { max = 5 }: { max?: number }) => {
+    // Get pending uploads using internal query (admin access)
+    const pendingUploads: any[] = await ctx.runQuery(internal.uploads.listPendingInternal, { limit: max })
+
+    if (pendingUploads.length === 0) {
+      return { scanned: 0, processed: 0, message: 'No pending uploads found' }
+    }
+
+    let processed = 0
+    const errors = []
+
+    for (const upload of pendingUploads) {
+      if (upload.status !== 'pending') continue
+
+      try {
+        const result = await ctx.runAction(api.processing.processUpload, { uploadId: upload._id })
+        processed++
+        console.log(`Processed upload ${upload._id}: ${result.eventsProcessed} events`)
+      } catch (error) {
+        const errorMsg = error instanceof Error ? error.message : 'Unknown error'
+        console.error(`Failed to process upload ${upload._id}:`, errorMsg)
+        errors.push({ uploadId: upload._id, error: errorMsg })
+      }
+    }
+
+    return {
+      scanned: pendingUploads.length,
+      processed,
+      errors,
+      message: `Processed ${processed} uploads, ${errors.length} errors`
+    }
+  },
+})
+
+// Reset failed uploads back to pending for reprocessing
+export const resetFailedUploads = action({
+  args: {},
+  handler: async (ctx: any) => {
+    // Get failed uploads
+    const failedUploads: any[] = await ctx.runQuery(internal.uploads.listFailedInternal, { limit: 100 })
+
+    let reset = 0
+    for (const upload of failedUploads) {
+      await ctx.runMutation(internal.uploads.markStatusInternal, {
+        id: upload._id,
+        status: 'pending',
+        error: undefined, // Clear error
+      })
+      reset++
+    }
+
+    return {
+      reset,
+      message: `Reset ${reset} failed uploads back to pending status`
     }
   },
 })

@@ -179,7 +179,7 @@ export class YouTubeHistoryParser {
 
       // Timestamp: prefer full date-time lines
       // e.g., Aug 15, 2025, 11:04:01 AM CDT
-      const fullTsMatch = content.match(/([A-Za-z]{3,9}\s+\d{1,2},\s+\d{4},\s+\d{1,2}:\d{2}:\d{2}\s+(?:AM|PM)?(?:\s+[A-Z]{2,4})?)/)
+      const fullTsMatch = content.match(/([A-Za-z]{3,9}[\s\u00A0]+\d{1,2},[\s\u00A0]+\d{4},[\s\u00A0]+\d{1,2}:\d{2}:\d{2}[\s\u00A0]*(?:AM|PM)?(?:[\s\u00A0]+[A-Z]{2,4})?)/)
       let startedAt = fullTsMatch ? parseWatchTimestamp(fullTsMatch[1]) : undefined
 
       // Fallback: "Watched at 11:42 PM" + nearby date line
