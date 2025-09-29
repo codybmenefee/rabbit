@@ -29,6 +29,10 @@ export class YouTubeHistoryParser {
         const event = this.parseContentCell(cellContent)
         if (event) {
           events.push(event)
+          // Early exit if we have a lot of events to prevent memory issues
+          if (events.length >= 10000) {
+            break
+          }
         }
       }
 
@@ -41,6 +45,9 @@ export class YouTubeHistoryParser {
           const event = this.parseOuterCell(cellContent)
           if (event) {
             events.push(event)
+            if (events.length >= 10000) {
+              break
+            }
           }
         }
       }
@@ -56,6 +63,59 @@ export class YouTubeHistoryParser {
     }
 
     return events
+  }
+
+  // Streaming version that processes HTML in chunks
+  async *parseStreaming(htmlStream: ReadableStream<Uint8Array>): AsyncGenerator<ParsedWatchEvent, void, unknown> {
+    const reader = htmlStream.getReader()
+    let buffer = ''
+    let done = false
+
+    try {
+      while (!done) {
+        const { value, done: readerDone } = await reader.read()
+        done = readerDone
+
+        if (value) {
+          buffer += new TextDecoder().decode(value)
+
+          // Process complete content-cell divs as we find them
+          const contentCellRegex = /<div[^>]*class="[^"]*content-cell[^"]*"[^>]*>(.*?)<\/div>/g
+          let match
+
+          while ((match = contentCellRegex.exec(buffer)) !== null) {
+            const cellContent = match[1]
+            const event = this.parseContentCell(cellContent)
+            if (event) {
+              yield event
+            }
+
+            // Remove processed content from buffer to save memory
+            buffer = buffer.slice(match.index + match[0].length)
+            contentCellRegex.lastIndex = 0 // Reset regex state
+          }
+
+          // Prevent buffer from growing too large
+          if (buffer.length > 10 * 1024 * 1024) { // 10MB limit
+            buffer = buffer.slice(-5 * 1024 * 1024) // Keep last 5MB
+          }
+        }
+      }
+
+      // Process any remaining content in buffer
+      const contentCellRegex = /<div[^>]*class="[^"]*content-cell[^"]*"[^>]*>(.*?)<\/div>/g
+      let match
+      while ((match = contentCellRegex.exec(buffer)) !== null) {
+        const cellContent = match[1]
+        const event = this.parseContentCell(cellContent)
+        if (event) {
+          yield event
+        }
+      }
+
+    } finally {
+      reader.releaseLock()
+    }
   }
 
   private parseContentCell(content: string): ParsedWatchEvent | null {

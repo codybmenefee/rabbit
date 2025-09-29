@@ -18,6 +18,11 @@ const nextConfig = {
       static: 300, // Cache static content for 5 minutes
     },
   },
+  // Performance optimizations
+  swcMinify: true,
+  compiler: {
+    removeConsole: process.env.NODE_ENV === 'production',
+  },
   // Configure fetch caching behavior
   headers: async () => { return [] },
   // Webpack configuration - disable cache in development to avoid corruption
@@ -26,7 +31,33 @@ const nextConfig = {
     if (dev) {
       config.cache = false;
     }
-    
+
+    // Production optimizations
+    if (!dev) {
+      // Enable webpack optimizations
+      config.optimization = {
+        ...config.optimization,
+        moduleIds: 'deterministic',
+        chunkIds: 'deterministic',
+        splitChunks: {
+          chunks: 'all',
+          cacheGroups: {
+            vendor: {
+              test: /[\\/]node_modules[\\/]/,
+              name: 'vendors',
+              chunks: 'all',
+            },
+            recharts: {
+              test: /[\\/]node_modules[\\/]recharts[\\/]/,
+              name: 'recharts',
+              chunks: 'all',
+              priority: 10,
+            },
+          },
+        },
+      }
+    }
+
     // Client-side fallbacks
     if (!isServer) {
       config.resolve.fallback = {
@@ -34,7 +65,7 @@ const nextConfig = {
         path: false,
       };
     }
-    
+
     return config;
   },
 }

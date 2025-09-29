@@ -75,7 +75,63 @@ export const summary = query({
   }
 })
 
-// Return the user's raw records for client aggregations
+// Fast dashboard metrics - server-side aggregation
+export const dashboardMetrics = query({
+  args: {},
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity()
+    if (!identity?.subject) throw new Error('UNAUTHORIZED')
+    const userId = identity.subject
+
+    // Get total count efficiently
+    const totalEvents = await ctx.db
+      .query('watch_events')
+      .withIndex('by_user', q => q.eq('userId', userId))
+      .collect()
+
+    if (totalEvents.length === 0) {
+      return {
+        totalVideos: 0,
+        uniqueChannels: 0,
+        recentActivity: [],
+      }
+    }
+
+    // Get unique channels
+    const channelSet = new Set<string>()
+    totalEvents.forEach(event => {
+      if (event.channelTitle) channelSet.add(event.channelTitle)
+    })
+
+    // Get recent activity (last 30 days, optimized)
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+    const recentEvents = totalEvents
+      .filter(e => e.startedAt && new Date(e.startedAt) >= thirtyDaysAgo)
+      .sort((a, b) => new Date(b.startedAt!).getTime() - new Date(a.startedAt!).getTime())
+      .slice(0, 1000) // Limit for performance
+
+    // Group by day for recent activity
+    const activityByDay = new Map<string, number>()
+    recentEvents.forEach(event => {
+      if (event.startedAt) {
+        const date = new Date(event.startedAt).toISOString().slice(0, 10)
+        activityByDay.set(date, (activityByDay.get(date) ?? 0) + 1)
+      }
+    })
+
+    const recentActivity = Array.from(activityByDay.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([date, videos]) => ({ date, videos }))
+
+    return {
+      totalVideos: totalEvents.length,
+      uniqueChannels: channelSet.size,
+      recentActivity,
+    }
+  }
+})
+
+// Optimized records query with better defaults
 export const records = query({
   args: { limit: v.optional(v.number()), days: v.optional(v.number()) },
   handler: async (ctx, { limit, days }) => {
@@ -83,13 +139,15 @@ export const records = query({
     if (!identity?.subject) throw new Error('UNAUTHORIZED')
     const userId = identity.subject
 
-    const since = days && days > 0 ? new Date(Date.now() - days * 24 * 60 * 60 * 1000) : null
+    // Default to last 90 days for better performance, max 1000 records
+    const defaultDays = 90
+    const since = days && days > 0 ? new Date(Date.now() - days * 24 * 60 * 60 * 1000) :
+                  new Date(Date.now() - defaultDays * 24 * 60 * 60 * 1000)
 
-    // Use pagination to avoid hitting the 8192 limit
     const requestedLimit = typeof limit === 'number' && Number.isFinite(limit) && limit > 0
       ? Math.floor(limit)
-      : null
-    const effectiveLimit = requestedLimit ? Math.min(requestedLimit, MAX_RECORDS) : MAX_RECORDS
+      : 500 // Default smaller limit for performance
+    const effectiveLimit = Math.min(requestedLimit, MAX_RECORDS)
 
     const events = await ctx.db
       .query('watch_events')
@@ -97,9 +155,7 @@ export const records = query({
       .order('desc')
       .take(effectiveLimit)
 
-    const filtered = since
-      ? events.filter(e => !e.startedAt || new Date(e.startedAt) >= since)
-      : events
+    const filtered = events.filter(e => !e.startedAt || new Date(e.startedAt) >= since)
 
     // Return raw data from the event's raw field, with stable id
     return filtered.map(e => {
