@@ -54,7 +54,11 @@ export const processUpload = action({
             batch.map((event: ParsedWatchEvent) =>
               ctx.runMutation(api.watch_events.create, {
                 userId: upload.userId,
-                ...event,
+                videoId: event.videoId,
+                channelTitle: event.channelTitle,
+                channelId: event.channelId,
+                startedAt: event.startedAt,
+                raw: { ...event.raw, videoUrl: event.videoUrl, channelUrl: event.channelUrl },
               })
             )
           )
@@ -73,7 +77,11 @@ export const processUpload = action({
           batch.map((event: ParsedWatchEvent) =>
             ctx.runMutation(api.watch_events.create, {
               userId: upload.userId,
-              ...event,
+              videoId: event.videoId,
+              channelTitle: event.channelTitle,
+              channelId: event.channelId,
+              startedAt: event.startedAt,
+              raw: { ...event.raw, videoUrl: event.videoUrl, channelUrl: event.channelUrl },
             })
           )
         )

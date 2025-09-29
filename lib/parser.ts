@@ -2,11 +2,53 @@ import { WatchRecord } from './types'
 
 export interface ParsedWatchEvent {
   videoId: string
+  videoUrl?: string
   channelTitle?: string
   channelId?: string
+  channelUrl?: string
   startedAt?: string
   watchedSeconds?: number
   raw: any
+}
+
+const TZ_OFFSETS: Record<string, number> = {
+  UTC: 0, GMT: 0,
+  PST: -8, PDT: -7,
+  MST: -7, MDT: -6,
+  CST: -6, CDT: -5,
+  EST: -5, EDT: -4,
+}
+
+function toIsoWithZone(year: number, monthIndex: number, day: number, hour12: number, min: number, sec: number, ampm?: string, tzAbbr?: string) {
+  const hour = ampm ? ((hour12 % 12) + (ampm.toUpperCase() === 'PM' ? 12 : 0)) : hour12
+  const dt = new Date(Date.UTC(year, monthIndex, day, hour, min, sec))
+  if (tzAbbr && TZ_OFFSETS[tzAbbr]) {
+    const offset = TZ_OFFSETS[tzAbbr]
+    // Convert from local-with-zone to UTC by subtracting the offset
+    dt.setUTCHours(dt.getUTCHours() - offset)
+  }
+  return dt.toISOString()
+}
+
+function parseWatchTimestamp(line: string): string | undefined {
+  const clean = line.replace(/\u00A0/g, ' ').replace(/\s+/g, ' ').trim()
+  // Example: Aug 15, 2025, 11:04:01 AM CDT
+  const full = clean.match(/^([A-Za-z]{3,9}) (\d{1,2}), (\d{4}), (\d{1,2}):(\d{2}):(\d{2})\s*(AM|PM)?\s*([A-Z]{2,4})?$/)
+  if (full) {
+    const [, mon, day, year, hh, mm, ss, ampm, tz] = full
+    const monthIndex = new Date(`${mon} 1, 2000`).getMonth()
+    return toIsoWithZone(+year, monthIndex, +day, +hh, +mm, +ss, ampm, tz)
+  }
+  // ISO passthrough
+  const iso = clean.match(/^\d{4}-\d{2}-\d{2}T/)
+  if (iso) {
+    const d = new Date(clean)
+    if (!isNaN(d.getTime())) return d.toISOString()
+  }
+  // Fallback: try native Date (last resort)
+  const d = new Date(clean)
+  if (!isNaN(d.getTime())) return d.toISOString()
+  return undefined
 }
 
 export class YouTubeHistoryParser {
@@ -120,37 +162,49 @@ export class YouTubeHistoryParser {
 
   private parseContentCell(content: string): ParsedWatchEvent | null {
     try {
-      // Extract video title
-      const titleMatch = content.match(/<a[^>]*href="[^"]*watch\?v=([^"&]+)[^"]*"[^>]*>([^<]+)<\/a>/)
-      if (!titleMatch) return null
+      // Video URL + ID + Title
+      const videoAnchor = content.match(/<a[^>]*href="([^"]*watch\?v=([^"&]+)[^"]*)"[^>]*>([^<]+)<\/a>/i)
+      if (!videoAnchor) return null
+      const videoUrl = videoAnchor[1]
+      const videoId = videoAnchor[2]
+      const videoTitle = videoAnchor[3].trim()
 
-      const videoId = titleMatch[1]
-      const videoTitle = titleMatch[2].trim()
+      // Channel URL + Title + Id (when /channel/UC...)
+      const channelAnchor = content.match(/<a[^>]*href="https?:\/\/(?:www\.)?youtube\.com\/(channel|user|c)\/([^"?#/]+)[^"]*"[^>]*>([^<]+)<\/a>/i)
+      const channelKind = channelAnchor?.[1]
+      const channelSlug = channelAnchor?.[2]
+      const channelTitle = channelAnchor?.[3]?.trim()
+      const channelUrl = channelAnchor ? `https://www.youtube.com/${channelKind}/${channelSlug}` : undefined
+      const channelId = channelKind === 'channel' ? channelSlug : undefined
 
-      // Extract channel info
-      const channelMatch = content.match(/<a[^>]*href="[^"]*(?:channel|user|c)\/([^"&]+)[^"]*"[^>]*>([^<]+)<\/a>/)
-      const channelId = channelMatch ? channelMatch[1] : undefined
-      const channelTitle = channelMatch ? channelMatch[2].trim() : undefined
+      // Timestamp: prefer full date-time lines
+      // e.g., Aug 15, 2025, 11:04:01 AM CDT
+      const fullTsMatch = content.match(/([A-Za-z]{3,9}\s+\d{1,2},\s+\d{4},\s+\d{1,2}:\d{2}:\d{2}\s+(?:AM|PM)?(?:\s+[A-Z]{2,4})?)/)
+      let startedAt = fullTsMatch ? parseWatchTimestamp(fullTsMatch[1]) : undefined
 
-      // Extract timestamp
-      const timeMatch = content.match(/<br[^>]*>([^<]+(?:\d{1,2}:\d{2}:\d{2}[^<]*\d{4})[^<]*)</)
-      let startedAt: string | undefined
-
-      if (timeMatch) {
-        startedAt = this.parseTimestamp(timeMatch[1].trim())
+      // Fallback: "Watched at 11:42 PM" + nearby date line
+      if (!startedAt) {
+        const watchedAt = content.match(/Watched at\s+(\d{1,2}:\d{2}\s?(AM|PM))/i)
+        const dateOnly = content.match(/([A-Za-z]{3,9}\s+\d{1,2},\s+\d{4})/)
+        if (watchedAt && dateOnly) {
+          const line = `${dateOnly[1]}, ${watchedAt[1]}`
+          startedAt = parseWatchTimestamp(line)
+        }
       }
 
       return {
         videoId,
+        videoUrl,
         channelTitle,
         channelId,
+        channelUrl,
         startedAt,
         raw: {
           videoTitle,
           channelTitle,
-          channelId,
-          timestamp: timeMatch ? timeMatch[1].trim() : undefined,
-        }
+          channelUrl,
+          originalTimestamp: fullTsMatch?.[1],
+        },
       }
     } catch (error) {
       console.error('Error parsing content cell:', error)
@@ -196,60 +250,4 @@ export class YouTubeHistoryParser {
     return events
   }
 
-  private parseTimestamp(timestampStr: string): string | undefined {
-    try {
-      // Clean up common issues
-      const cleanStr = timestampStr
-        .replace(/\u00A0/g, ' ') // Replace non-breaking spaces
-        .replace(/\s+/g, ' ')
-        .trim()
-
-      // Try multiple date formats
-      const formats = [
-        // "Jun 23, 2025, 11:42:47 PM CDT"
-        /^([A-Za-z]{3})\s+(\d{1,2}),\s+(\d{4}),\s+(\d{1,2}):(\d{2}):(\d{2})\s+(AM|PM)\s+([A-Z]{3})$/,
-        // "Jun 23, 2025, 11:42:47 PM"
-        /^([A-Za-z]{3})\s+(\d{1,2}),\s+(\d{4}),\s+(\d{1,2}):(\d{2}):(\d{2})\s+(AM|PM)$/,
-        // ISO format
-        /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z?)$/,
-      ]
-
-      for (const format of formats) {
-        const match = cleanStr.match(format)
-        if (match) {
-          let date: Date
-
-          if (match.length === 8) {
-            // Full format with timezone
-            const [, month, day, year, hour, minute, second, ampm] = match
-            const hour24 = ampm === 'PM' ? (parseInt(hour) % 12) + 12 : parseInt(hour) % 12
-            date = new Date(`${month} ${day}, ${year} ${hour24}:${minute}:${second}`)
-          } else if (match.length === 7) {
-            // Format without timezone
-            const [, month, day, year, hour, minute, second, ampm] = match
-            const hour24 = ampm === 'PM' ? (parseInt(hour) % 12) + 12 : parseInt(hour) % 12
-            date = new Date(`${month} ${day}, ${year} ${hour24}:${minute}:${second}`)
-          } else {
-            // ISO format
-            date = new Date(match[1])
-          }
-
-          if (!isNaN(date.getTime())) {
-            return date.toISOString()
-          }
-        }
-      }
-
-      // Fallback: try native Date parsing
-      const fallbackDate = new Date(cleanStr)
-      if (!isNaN(fallbackDate.getTime())) {
-        return fallbackDate.toISOString()
-      }
-
-    } catch (error) {
-      console.error('Error parsing timestamp:', timestampStr, error)
-    }
-
-    return undefined
-  }
 }

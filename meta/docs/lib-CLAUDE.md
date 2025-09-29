@@ -20,7 +20,7 @@ Validation:
 Pitfalls:
 - Mutating arguments or shared state—always clone structures before modification.
 - Recomputing expensive aggregates in UI/worker code; centralize logic here and reuse.
-- Losing timezone fidelity when parsing timestamps; rely on existing parsing helpers.
+- Losing timezone fidelity when parsing timestamps; use `parseWatchTimestamp` which handles common timezone abbreviations (CDT, PST, etc.) and converts to UTC ISO strings while preserving original strings in `raw`.
 
 References:
 - `scripts/CLAUDE.md` for validation tooling.

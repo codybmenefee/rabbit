@@ -29,4 +29,11 @@ For detailed docs, see the files under `meta/`.
 3. Set `BLOB_READ_WRITE_TOKEN` in `.env.local` so the API route can authenticate with Vercel Blob Storage.
 4. We store the file in Vercel Blob storage and return the blob URL, path, timestamp, and size.
 
-Blob access defaults to private. Extend the ingestion pipeline as needed to parse and import the uploaded artifact into Convex.
+Blob access defaults to private. The ingestion pipeline automatically processes uploaded files, extracting:
+
+- **Video Details**: Title, YouTube ID, full URL
+- **Channel Info**: Title, URL, and stable channel ID (when available from `/channel/` links)
+- **Timestamps**: Watched-at times parsed to ISO 8601 UTC, handling common timezone abbreviations (CDT, PST, etc.)
+- **Raw Data**: Original HTML snippets preserved for auditability
+
+Files are processed asynchronously by a Convex cron job, upserting videos, channels, and watch events with proper uniqueness constraints.
