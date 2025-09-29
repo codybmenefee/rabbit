@@ -132,3 +132,19 @@ export const getRecentWatchEvents = query({
       .collect()
   },
 })
+
+export const videoCount = query({
+  args: {},
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity()
+    if (!identity?.subject) throw new Error('UNAUTHORIZED')
+    const userId = identity.subject
+
+    const events = await ctx.db
+      .query('watch_events')
+      .withIndex('by_user', q => q.eq('userId', userId))
+      .collect()
+
+    return { count: events.length }
+  },
+})

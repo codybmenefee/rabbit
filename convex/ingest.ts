@@ -1,6 +1,5 @@
 import { mutation } from './_generated/server'
 import { v } from 'convex/values'
-import { enqueueJobInternal } from './jobs'
 
 export const ingestWatchRecords = mutation({
   args: { records: v.array(v.any()) },
@@ -67,45 +66,9 @@ export const ingestWatchRecords = mutation({
       })
       inserted++
 
-      await enqueueJobInternal(ctx, {
-        type: 'video.fetch_metadata',
-        userId,
-        videoId,
-        priority: 50,
-        payload: { reason: 'ingest' },
-        dedupeKey: `video.fetch_metadata:${videoId}`,
-      })
-
-      await enqueueJobInternal(ctx, {
-        type: 'video.ensure_transcript',
-        userId,
-        videoId,
-        priority: 100,
-        payload: { reason: 'ingest' },
-        dedupeKey: `video.ensure_transcript:${videoId}`,
-      })
-
-      await enqueueJobInternal(ctx, {
-        type: 'video.generate_summary',
-        userId,
-        videoId,
-        priority: 110,
-        payload: { reason: 'ingest' },
-        dedupeKey: `video.generate_summary:${videoId}`,
-        scheduledFor: new Date(Date.now() + 60 * 1000).toISOString(),
-      })
 
     }
 
-    if (inserted > 0) {
-      await ctx.db.insert('data_change_log', {
-        userId,
-        changeType: 'ingest',
-        recordCount: inserted,
-        changedAt: nowIso,
-        processed: false,
-      })
-    }
 
     return { inserted, skipped }
   }
@@ -128,30 +91,6 @@ export const clearAllUserData = mutation({
       await ctx.db.delete(e._id)
     }
 
-    // Best-effort: clean derived stats if present
-    const dailies = await ctx.db
-      .query('user_daily')
-      .withIndex('by_user_date', q => q.eq('userId', userId))
-      .collect()
-    for (const d of dailies) {
-      await ctx.db.delete(d._id)
-    }
-
-    const videoStats = await ctx.db
-      .query('user_video_stats')
-      .withIndex('by_user_video', q => q.eq('userId', userId))
-      .collect()
-    for (const s of videoStats) {
-      await ctx.db.delete(s._id)
-    }
-
-    const channelStats = await ctx.db
-      .query('user_channel_stats')
-      .withIndex('by_user_channel', q => q.eq('userId', userId))
-      .collect()
-    for (const s of channelStats) {
-      await ctx.db.delete(s._id)
-    }
 
     return { deletedEvents: events.length }
   }

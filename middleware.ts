@@ -1,10 +1,11 @@
 import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
 
-// Allow unauthenticated access to Clerk auth pages
+// Allow unauthenticated access to Clerk auth pages and home page for testing
 const isPublicRoute = createRouteMatcher([
   "/sign-in(.*)",
   "/sign-up(.*)",
   "/sso-callback(.*)",
+  "/",
 ]);
 
 export default clerkMiddleware(async (auth, req) => {
