@@ -21,3 +21,9 @@
 - Summarize user-facing impact, link related issues, and attach screenshots or clips for visual changes.
 - Call out follow-up work, trade-offs, or risks explicitly so reviewers can plan next steps.
 - Keep refactors separate from behavioral changes to make review and rollback safer.
+
+## Operational guidance
+- **Convex internals:** For background jobs, use `internalQuery`/`internalMutation` and call via `internal.*` from actions. Keep user-facing mutations authenticated.
+- **Processing controls:** Use `processing:processPendingUploads` (bulk) and `processing:resetFailedUploads` (requeue failures). Prefer running these from the Convex dashboard in dev.
+- **Parser expectations:** YouTube Takeout HTML contains NBSP characters and multiple timestamp formats. Prefer full timestamps, handle timezone abbreviations, and keep the original string in `raw`.
+- **Schema evolution:** Preserve source fields in `raw` even if not modeled; migrate to first-class columns only when needed.

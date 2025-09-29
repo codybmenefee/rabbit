@@ -37,3 +37,12 @@ Blob access defaults to private. The ingestion pipeline automatically processes 
 - **Raw Data**: Original HTML snippets preserved for auditability
 
 Files are processed asynchronously by a Convex cron job, upserting videos, channels, and watch events with proper uniqueness constraints.
+
+## Developer Tips
+
+- **Background jobs (Convex):** Use `internalQuery`/`internalMutation` for cron/processing. Call them through `internal.*` from actions. Keep user-facing mutations (`uploads.create`, `watch_events.create`) authenticated.
+- **Manual processing:** Use `processing:processPendingUploads` to process queued uploads and `processing:resetFailedUploads` to requeue failures.
+- **Parser robustness:** Normalize NBSP (U+00A0), handle "Watched at …" + date combos, map timezone abbreviations (CDT/PDT/etc.), and preserve the original timestamp string in `raw`.
+- **Data fidelity:** Always pass through `videoUrl`/`channelUrl` and store source fields in `raw` to allow schema evolution without data loss.
+- **Servers:** Run `npx convex dev` and `npm run dev`. If new Convex functions don’t appear, restart or run with `--push`.
+- **Tests:** Add small HTML fixtures to `test/fixtures/` and unit tests under `lib/__tests__/`. Validate timezone parsing and NBSP handling.
