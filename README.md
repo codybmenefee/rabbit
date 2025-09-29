@@ -21,3 +21,12 @@ Open `http://localhost:4000`.
 - `meta/` – documentation, guides, tests
 
 For detailed docs, see the files under `meta/`.
+
+## Uploading Your Watch History
+
+1. Navigate to `/upload` to access the secure upload workflow.
+2. Drag and drop or browse for your Google Takeout `watch-history.html` file.
+3. Set `BLOB_READ_WRITE_TOKEN` in `.env.local` so the API route can authenticate with Vercel Blob Storage.
+4. We store the file in Vercel Blob storage and return the blob URL, path, timestamp, and size.
+
+Blob access defaults to private. Extend the ingestion pipeline as needed to parse and import the uploaded artifact into Convex.
