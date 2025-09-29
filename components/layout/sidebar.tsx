@@ -2,13 +2,10 @@
 
 import { useState, useEffect } from 'react'
 import { 
-  BarChart3, 
-  TrendingUp, 
   Clock, 
   Users, 
   Settings, 
   Upload,
-  Layers,
   Home,
   Search,
   Database,
@@ -21,11 +18,8 @@ import { cn } from '@/lib/utils'
 
 const navigation = [
   { name: 'Dashboard', href: '/', icon: Home },
-  { name: 'Analytics', href: '/analytics', icon: BarChart3 },
-  { name: 'Channels', href: '/channels', icon: Users },
-  { name: 'Topics', href: '/topics', icon: Layers },
-  { name: 'History', href: '/history', icon: Clock },
-  { name: 'Trends', href: '/trends', icon: TrendingUp },
+  { name: 'Video', href: '/history', icon: Clock },
+  { name: 'Channel', href: '/channels', icon: Users },
 ]
 
 const bottomNavigation = [
@@ -90,7 +84,7 @@ export function Sidebar({ className }: SidebarProps) {
         <div className="flex h-16 items-center px-6 border-b border-white/[0.08]">
           <div className="flex items-center gap-3 flex-1">
             <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center shadow-lg shadow-purple-500/20">
-              <BarChart3 className="w-5 h-5 text-white" />
+              <Home className="w-5 h-5 text-white" />
             </div>
             <span className="text-base font-semibold text-white">YT Analytics</span>
           </div>

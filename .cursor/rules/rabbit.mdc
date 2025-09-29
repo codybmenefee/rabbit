@@ -1,5 +1,5 @@
 ---
-alwaysApply: false
+alwaysApply: true
 ---
 # Cursor Rules for Rabbit
 
@@ -21,5 +21,65 @@ This project uses hierarchical documentation:
 - Use Recharts for charts, Tailwind for styling
 - Keep components under 500 lines, split by responsibility
 - Maintain separation between parsing, storage, and presentation layers
+
+## Testing with Playwright
+
+### Authentication Requirements
+This application uses Clerk for authentication and most routes are protected. When testing with Playwright:
+
+**Always use authentication helpers:**
+- Import `AuthHelpers` from `tests/auth-helpers.ts`
+- Use `createAuthenticatedTestContext(page)` for protected routes
+- Use `createUnauthenticatedTestContext(page)` for sign-in flows
+
+**Example test setup:**
+```typescript
+import { test, expect } from '@playwright/test';
+import { createAuthenticatedTestContext } from './auth-helpers';
+
+test('dashboard shows data', async ({ page }) => {
+  const authHelpers = await createAuthenticatedTestContext(page);
+  await page.goto('/');
+  // Test authenticated functionality
+});
+```
+
+### Development Server Setup
+- **Convex**: Run `npx convex dev` (runs on background, provides database)
+- **Next.js**: Run `npm run dev` (defaults to port 3000, but configured for 4000)
+- **Playwright**: Configured to use `http://localhost:4000` as base URL
+
+### Common Testing Scenarios
+
+**Testing Dashboard Functionality:**
+1. Mock authentication using `AuthHelpers`
+2. Navigate to `/` (dashboard)
+3. Expect to see either:
+   - Loading state: "Fetching your data from Convex..."
+   - No data state: "No data yet" with upload button
+   - Data state: Record counts and analytics
+
+**Testing Protected Routes:**
+- Routes like `/history`, `/channels`, `/dashboard-demo` require authentication
+- Without auth, users are redirected to Clerk sign-in page
+- Use `authHelpers.navigateToProtectedRoute('/history')` for convenience
+
+**Testing Authentication Flows:**
+- Use `createUnauthenticatedTestContext(page)` to test sign-in/sign-up
+- Verify redirects to Clerk authentication pages
+- Test successful authentication redirects back to intended route
+
+### Troubleshooting Authentication Issues
+
+**If tests fail with authentication errors:**
+1. Ensure `AuthHelpers` is properly imported and used
+2. Check that `createAuthenticatedTestContext()` is called before navigation
+3. Verify the mock user object has required fields (`id`, `email`, etc.)
+4. For Convex queries, ensure the mock user ID matches expected format
+
+**If development server conflicts occur:**
+- Check for existing processes: `ps aux | grep -E "(next|node)"`
+- Kill conflicting processes or use different ports
+- Ensure Convex dev server is running for database operations
 
 See the main documentation files for detailed context and guidelines.

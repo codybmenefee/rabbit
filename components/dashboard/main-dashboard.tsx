@@ -583,13 +583,17 @@ function DeltaBadge({
 }
 
 function computeAnalytics(data: WatchRecord[]): DashboardAnalytics | null {
-  const datedRecords: RecordWithDate[] = data.reduce<RecordWithDate[]>((acc, record) => {
+  if (data.length === 0) {
+    return null
+  }
+
+  // Include all records, use fallback date for records without timestamps
+  const datedRecords: RecordWithDate[] = data.map(record => {
     const recordDate = resolveRecordDate(record)
-    if (recordDate) {
-      acc.push({ record, date: recordDate })
-    }
-    return acc
-  }, [])
+    // Use a fallback date (today) for records without timestamps
+    const fallbackDate = recordDate || new Date()
+    return { record, date: fallbackDate }
+  })
 
   if (datedRecords.length === 0) {
     return null
@@ -948,7 +952,7 @@ export function generateSampleData(): WatchRecord[] {
     const topic = topics[Math.floor(Math.random() * topics.length)]
 
     sampleData.push({
-      id: `sample-${i}`,
+      id: `sample-${i}-${randomTime}`,
       watchedAt: randomDate.toISOString(),
       videoId: `video-${i}`,
       videoTitle: `Sample Video ${i + 1}`,
